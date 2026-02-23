@@ -17,7 +17,6 @@ function optional(name: string, defaultValue: string): string {
 export const config = {
   microsoftAppId: required('MICROSOFT_APP_ID'),
   microsoftAppPassword: required('MICROSOFT_APP_PASSWORD'),
-  microsoftAppTenantId: required('MICROSOFT_APP_TENANT_ID'),
 
   chatwootBaseUrl: required('CHATWOOT_BASE_URL').replace(/\/+$/, ''),
   chatwootApiAccessToken: required('CHATWOOT_API_ACCESS_TOKEN'),

@@ -19,8 +19,7 @@ db.pragma('foreign_keys = ON');
 // Initialize components
 const adapter = createAdapter(
   config.microsoftAppId,
-  config.microsoftAppPassword,
-  config.microsoftAppTenantId
+  config.microsoftAppPassword
 );
 
 const chatwootClient = new ChatwootClient(
