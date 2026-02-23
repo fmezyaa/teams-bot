@@ -12,7 +12,9 @@ export function createChatwootWebhookRouter(bridgeService: BridgeService): Route
 
     const payload = req.body as ChatwootWebhookPayload;
 
-    logger.debug({ event: payload.event, messageType: payload.message_type }, 'Chatwoot webhook received');
+    // Debug: log full payload to diagnose webhook issues
+    logger.info({ payload: JSON.stringify(req.body).substring(0, 1000) }, 'Chatwoot webhook raw payload');
+    logger.info({ event: payload.event, messageType: payload.message_type, private: payload.private, hasConversation: !!payload.conversation, hasContent: !!payload.content }, 'Chatwoot webhook received');
 
     // Only process outgoing (agent) messages that are not private
     if (payload.event !== 'message_created') {
