@@ -17,12 +17,11 @@ function optional(name: string, defaultValue: string): string {
 export const config = {
   microsoftAppId: required('MICROSOFT_APP_ID'),
   microsoftAppPassword: required('MICROSOFT_APP_PASSWORD'),
-  microsoftAppTenantId: required('MICROSOFT_APP_TENANT_ID'),
 
   chatwootBaseUrl: required('CHATWOOT_BASE_URL').replace(/\/+$/, ''),
   chatwootApiAccessToken: required('CHATWOOT_API_ACCESS_TOKEN'),
-  chatwootAccountId: parseInt(required('CHATWOOT_ACCOUNT_ID'), 10),
-  chatwootInboxId: parseInt(required('CHATWOOT_INBOX_ID'), 10),
+
+  adminApiToken: required('ADMIN_API_TOKEN'),
 
   bridgeBaseUrl: required('BRIDGE_BASE_URL').replace(/\/+$/, ''),
   port: parseInt(optional('PORT', '3978'), 10),

@@ -2,8 +2,6 @@ import {
   TeamsActivityHandler,
   TurnContext,
   TeamsInfo,
-  ChannelInfo,
-  MessageFactory,
   Activity,
 } from 'botbuilder';
 import { logger } from '../utils/logger';
@@ -19,9 +17,13 @@ export class TeamsBot extends TeamsActivityHandler {
     this.onMessage(async (context: TurnContext, next) => {
       try {
         await this.handleIncomingMessage(context);
-      } catch (error) {
+      } catch (error: any) {
         logger.error({ error }, 'Error handling Teams message');
-        await context.sendActivity('Sorry, something went wrong processing your message.');
+        if (error?.message?.startsWith('No tenant configured')) {
+          await context.sendActivity('This organization is not configured for support. Please contact your administrator.');
+        } else {
+          await context.sendActivity('Sorry, something went wrong processing your message.');
+        }
       }
       await next();
     });
@@ -56,6 +58,14 @@ export class TeamsBot extends TeamsActivityHandler {
       return;
     }
 
+    // Extract tenant ID
+    const teamsTenantId = activity.conversation.tenantId;
+    if (!teamsTenantId) {
+      logger.warn({ conversationId: activity.conversation.id }, 'No tenant ID found in Teams activity');
+      await context.sendActivity('Could not determine your organization. Please try again.');
+      return;
+    }
+
     // Send typing indicator
     await context.sendActivities([{ type: 'typing' } as Partial<Activity>]);
 
@@ -76,6 +86,7 @@ export class TeamsBot extends TeamsActivityHandler {
     const conversationReference = TurnContext.getConversationReference(activity);
 
     await this.bridgeService.handleTeamsMessage({
+      teamsTenantId,
       teamsUserId,
       teamsConversationId: activity.conversation.id,
       userName,
@@ -85,6 +96,7 @@ export class TeamsBot extends TeamsActivityHandler {
     });
 
     logger.info({
+      teamsTenantId,
       teamsUserId,
       conversationType: activity.conversation.conversationType,
       textLength: text.length,

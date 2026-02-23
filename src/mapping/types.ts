@@ -1,6 +1,7 @@
 import { ConversationReference } from 'botbuilder';
 
 export interface ContactMapping {
+  tenantId: string;
   teamsUserId: string;
   chatwootContactId: number;
   displayName: string;
@@ -9,6 +10,7 @@ export interface ContactMapping {
 }
 
 export interface ConversationMapping {
+  tenantId: string;
   teamsConversationId: string;
   teamsUserId: string;
   chatwootConversationId: number;

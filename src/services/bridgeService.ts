@@ -3,8 +3,10 @@ import { logger } from '../utils/logger';
 import { ChatwootClient } from '../chatwoot/chatwootClient';
 import { ChatwootWebhookPayload } from '../chatwoot/types';
 import { ConversationStore } from '../mapping/conversationStore';
+import { TenantStore } from '../mapping/tenantStore';
 
 export interface TeamsMessagePayload {
+  teamsTenantId: string;
   teamsUserId: string;
   teamsConversationId: string;
   userName: string;
@@ -16,50 +18,63 @@ export interface TeamsMessagePayload {
 export class BridgeService {
   private chatwootClient: ChatwootClient;
   private store: ConversationStore;
+  private tenantStore: TenantStore;
   private adapter: CloudAdapter;
   private appId: string;
 
   constructor(
     chatwootClient: ChatwootClient,
     store: ConversationStore,
+    tenantStore: TenantStore,
     adapter: CloudAdapter,
     appId: string
   ) {
     this.chatwootClient = chatwootClient;
     this.store = store;
+    this.tenantStore = tenantStore;
     this.adapter = adapter;
     this.appId = appId;
   }
 
   async handleTeamsMessage(payload: TeamsMessagePayload): Promise<void> {
-    const { teamsUserId, teamsConversationId, userName, userEmail, text, conversationReference } = payload;
+    const { teamsTenantId, teamsUserId, teamsConversationId, userName, userEmail, text, conversationReference } = payload;
+
+    // Resolve tenant
+    const tenant = this.tenantStore.getByTeamsTenantId(teamsTenantId);
+    if (!tenant) {
+      logger.warn({ teamsTenantId }, 'No tenant configured for Teams tenant ID');
+      throw new Error(`No tenant configured for Teams tenant ID: ${teamsTenantId}`);
+    }
+
+    const { chatwootAccountId, chatwootInboxId } = tenant;
 
     // 1. Find or create Chatwoot contact
-    let contactMapping = this.store.getContactByTeamsUserId(teamsUserId);
+    let contactMapping = this.store.getContactByTeamsUserId(teamsTenantId, teamsUserId);
     let chatwootContactId: number;
 
     if (contactMapping) {
       chatwootContactId = contactMapping.chatwootContactId;
     } else {
-      const contact = await this.chatwootClient.findOrCreateContact(teamsUserId, userName, userEmail);
+      const contact = await this.chatwootClient.findOrCreateContact(chatwootAccountId, teamsUserId, userName, userEmail);
       chatwootContactId = contact.id;
-      this.store.upsertContact(teamsUserId, chatwootContactId, userName, userEmail);
+      this.store.upsertContact(teamsTenantId, teamsUserId, chatwootContactId, userName, userEmail);
     }
 
     // 2. Find or create Chatwoot conversation
-    let conversationMapping = this.store.getConversation(teamsConversationId, teamsUserId);
+    let conversationMapping = this.store.getConversation(teamsTenantId, teamsConversationId, teamsUserId);
     let chatwootConversationId: number;
 
     if (conversationMapping) {
       chatwootConversationId = conversationMapping.chatwootConversationId;
     } else {
       const sourceId = `teams:${teamsConversationId}:${teamsUserId}`;
-      const conversation = await this.chatwootClient.createConversation(chatwootContactId, sourceId);
+      const conversation = await this.chatwootClient.createConversation(chatwootAccountId, chatwootInboxId, chatwootContactId, sourceId);
       chatwootConversationId = conversation.id;
     }
 
     // 3. Store/update conversation reference (needed for proactive messages back to Teams)
     this.store.upsertConversation(
+      teamsTenantId,
       teamsConversationId,
       teamsUserId,
       chatwootConversationId,
@@ -67,11 +82,12 @@ export class BridgeService {
     );
 
     // 4. Send message to Chatwoot as incoming (from user)
-    await this.chatwootClient.sendMessage(chatwootConversationId, text, 'incoming');
+    await this.chatwootClient.sendMessage(chatwootAccountId, chatwootConversationId, text, 'incoming');
 
     logger.info({
+      teamsTenantId,
       teamsUserId,
-      chatwootContactId,
+      chatwootAccountId,
       chatwootConversationId,
     }, 'Teams → Chatwoot message forwarded');
   }
@@ -80,7 +96,7 @@ export class BridgeService {
     const chatwootConversationId = payload.conversation!.id;
     const content = payload.content!;
 
-    // Look up the Teams conversation mapping
+    // Look up the Teams conversation mapping (globally unique by chatwoot_conversation_id)
     const mapping = this.store.getConversationByChatwootId(chatwootConversationId);
     if (!mapping) {
       logger.warn({ chatwootConversationId }, 'No Teams mapping found for Chatwoot conversation');
@@ -102,6 +118,7 @@ export class BridgeService {
       logger.info({
         chatwootConversationId,
         teamsConversationId: mapping.teamsConversationId,
+        tenantId: mapping.tenantId,
       }, 'Chatwoot → Teams message forwarded');
     } catch (error) {
       logger.error({

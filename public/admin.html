@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tenant Admin</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --surface: #ffffff;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --danger: #dc2626;
+      --danger-hover: #b91c1c;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* Login */
+    #login-view {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .login-card {
+      background: var(--surface);
+      padding: 2.5rem;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      width: 100%;
+      max-width: 380px;
+    }
+
+    .login-card h1 {
+      font-size: 1.5rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .login-card p {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      font-size: 0.9rem;
+    }
+
+    /* Dashboard */
+    #dashboard-view { display: none; }
+
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: var(--shadow);
+    }
+
+    .topbar h1 { font-size: 1.25rem; }
+
+    .topbar-actions { display: flex; gap: 0.5rem; }
+
+    .container {
+      max-width: 960px;
+      margin: 1.5rem auto;
+      padding: 0 1rem;
+    }
+
+    /* Form elements */
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      color: var(--text);
+    }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="number"] {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+    }
+
+    .form-group { margin-bottom: 1rem; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.6rem 1.1rem;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { background: var(--danger-hover); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { background: var(--bg); }
+
+    .btn-sm { padding: 0.35rem 0.7rem; font-size: 0.8rem; }
+
+    /* Table */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      text-align: left;
+      padding: 0.75rem 1rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .actions-cell {
+      display: flex;
+      gap: 0.35rem;
+      justify-content: flex-end;
+    }
+
+    .empty-state {
+      padding: 3rem 1rem;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    /* Modal */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+      width: 100%;
+      max-width: 480px;
+      margin: 1rem;
+    }
+
+    .modal-header {
+      padding: 1.25rem 1.5rem 0;
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+
+    .modal-body { padding: 1.25rem 1.5rem; }
+
+    .modal-footer {
+      padding: 0 1.5rem 1.25rem;
+      display: flex;
+      gap: 0.5rem;
+      justify-content: flex-end;
+    }
+
+    /* Alert */
+    .alert {
+      padding: 0.6rem 0.75rem;
+      border-radius: var(--radius);
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+
+    .alert-error {
+      background: #fef2f2;
+      color: var(--danger);
+      border: 1px solid #fecaca;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      th, td { padding: 0.5rem 0.6rem; font-size: 0.8rem; }
+      .hide-mobile { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Login View -->
+  <div id="login-view">
+    <div class="login-card">
+      <h1>Tenant Admin</h1>
+      <p>Bitte Admin-Token eingeben, um fortzufahren.</p>
+      <div id="login-error"></div>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="token-input">Admin Token</label>
+          <input type="password" id="token-input" placeholder="Token eingeben..." autocomplete="off" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%">Anmelden</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Dashboard View -->
+  <div id="dashboard-view">
+    <div class="topbar">
+      <h1>Tenant Admin</h1>
+      <div class="topbar-actions">
+        <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ Neuer Tenant</button>
+        <button class="btn btn-ghost btn-sm" onclick="logout()">Abmelden</button>
+      </div>
+    </div>
+    <div class="container">
+      <div id="dashboard-error"></div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Teams Tenant ID</th>
+              <th class="hide-mobile">Account ID</th>
+              <th class="hide-mobile">Inbox ID</th>
+              <th class="hide-mobile">Erstellt</th>
+              <th style="text-align:right">Aktionen</th>
+            </tr>
+          </thead>
+          <tbody id="tenant-tbody"></tbody>
+        </table>
+        <div id="empty-state" class="empty-state" style="display:none">
+          Noch keine Tenants vorhanden.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create/Edit Modal -->
+  <div class="modal-backdrop" id="tenant-modal">
+    <div class="modal">
+      <div class="modal-header" id="modal-title">Neuer Tenant</div>
+      <div class="modal-body">
+        <div id="modal-error"></div>
+        <form id="tenant-form">
+          <input type="hidden" id="form-editing-id">
+          <div class="form-group">
+            <label for="form-name">Name</label>
+            <input type="text" id="form-name" required>
+          </div>
+          <div class="form-group">
+            <label for="form-teams-id">Teams Tenant ID</label>
+            <input type="text" id="form-teams-id" required>
+          </div>
+          <div class="form-group">
+            <label for="form-account-id">Chatwoot Account ID</label>
+            <input type="number" id="form-account-id" required min="1">
+          </div>
+          <div class="form-group">
+            <label for="form-inbox-id">Chatwoot Inbox ID</label>
+            <input type="number" id="form-inbox-id" required min="1">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>
+        <button class="btn btn-primary" id="modal-save-btn" onclick="saveTenant()">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirm Modal -->
+  <div class="modal-backdrop" id="delete-modal">
+    <div class="modal">
+      <div class="modal-header">Tenant löschen</div>
+      <div class="modal-body">
+        <p>Soll der Tenant <strong id="delete-tenant-name"></strong> wirklich gelöscht werden? Diese Aktion kann nicht rückgängig gemacht werden.</p>
+        <input type="hidden" id="delete-tenant-id">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeDeleteModal()">Abbrechen</button>
+        <button class="btn btn-danger" onclick="confirmDelete()">Löschen</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '/api/admin';
+    let token = sessionStorage.getItem('admin_token') || '';
+
+    // --- Auth ---
+    function getHeaders() {
+      return {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+      };
+    }
+
+    async function apiFetch(path, opts = {}) {
+      const res = await fetch(API_BASE + path, {
+        ...opts,
+        headers: getHeaders(),
+      });
+      if (res.status === 401 || res.status === 403) {
+        logout();
+        throw new Error('Nicht autorisiert');
+      }
+      return res;
+    }
+
+    // --- Login ---
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = document.getElementById('token-input');
+      token = input.value.trim();
+      if (!token) return;
+
+      try {
+        const res = await fetch(API_BASE + '/tenants', {
+          headers: { 'Authorization': 'Bearer ' + token },
+        });
+        if (res.ok) {
+          sessionStorage.setItem('admin_token', token);
+          showDashboard();
+        } else {
+          showError('login-error', 'Ungültiger Token.');
+          token = '';
+        }
+      } catch {
+        showError('login-error', 'Verbindung fehlgeschlagen.');
+        token = '';
+      }
+    });
+
+    function logout() {
+      token = '';
+      sessionStorage.removeItem('admin_token');
+      document.getElementById('login-view').style.display = 'flex';
+      document.getElementById('dashboard-view').style.display = 'none';
+      document.getElementById('token-input').value = '';
+    }
+
+    // --- Dashboard ---
+    async function showDashboard() {
+      document.getElementById('login-view').style.display = 'none';
+      document.getElementById('dashboard-view').style.display = 'block';
+      await loadTenants();
+    }
+
+    async function loadTenants() {
+      try {
+        const res = await apiFetch('/tenants');
+        const tenants = await res.json();
+        renderTable(tenants);
+      } catch (err) {
+        if (err.message !== 'Nicht autorisiert') {
+          showError('dashboard-error', 'Fehler beim Laden der Tenants.');
+        }
+      }
+    }
+
+    function renderTable(tenants) {
+      const tbody = document.getElementById('tenant-tbody');
+      const empty = document.getElementById('empty-state');
+
+      if (tenants.length === 0) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+
+      empty.style.display = 'none';
+      tbody.innerHTML = tenants.map(t => `
+        <tr>
+          <td>${esc(t.name)}</td>
+          <td><code>${esc(t.teamsTenantId)}</code></td>
+          <td class="hide-mobile">${t.chatwootAccountId}</td>
+          <td class="hide-mobile">${t.chatwootInboxId}</td>
+          <td class="hide-mobile">${formatDate(t.createdAt)}</td>
+          <td>
+            <div class="actions-cell">
+              <button class="btn btn-ghost btn-sm" onclick="openEditModal('${esc(t.teamsTenantId)}')">Bearbeiten</button>
+              <button class="btn btn-danger btn-sm" onclick="openDeleteModal('${esc(t.teamsTenantId)}', '${esc(t.name)}')">Löschen</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // --- Create / Edit Modal ---
+    function openCreateModal() {
+      document.getElementById('modal-title').textContent = 'Neuer Tenant';
+      document.getElementById('modal-save-btn').textContent = 'Anlegen';
+      document.getElementById('form-editing-id').value = '';
+      document.getElementById('form-name').value = '';
+      document.getElementById('form-teams-id').value = '';
+      document.getElementById('form-teams-id').removeAttribute('disabled');
+      document.getElementById('form-account-id').value = '';
+      document.getElementById('form-inbox-id').value = '';
+      clearError('modal-error');
+      document.getElementById('tenant-modal').classList.add('open');
+    }
+
+    async function openEditModal(teamsTenantId) {
+      try {
+        const res = await apiFetch('/tenants/' + encodeURIComponent(teamsTenantId));
+        if (!res.ok) throw new Error();
+        const t = await res.json();
+
+        document.getElementById('modal-title').textContent = 'Tenant bearbeiten';
+        document.getElementById('modal-save-btn').textContent = 'Speichern';
+        document.getElementById('form-editing-id').value = t.teamsTenantId;
+        document.getElementById('form-name').value = t.name;
+        document.getElementById('form-teams-id').value = t.teamsTenantId;
+        document.getElementById('form-teams-id').setAttribute('disabled', 'true');
+        document.getElementById('form-account-id').value = t.chatwootAccountId;
+        document.getElementById('form-inbox-id').value = t.chatwootInboxId;
+        clearError('modal-error');
+        document.getElementById('tenant-modal').classList.add('open');
+      } catch {
+        showError('dashboard-error', 'Fehler beim Laden des Tenants.');
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('tenant-modal').classList.remove('open');
+    }
+
+    async function saveTenant() {
+      const name = document.getElementById('form-name').value.trim();
+      const teamsTenantId = document.getElementById('form-teams-id').value.trim();
+      const chatwootAccountId = parseInt(document.getElementById('form-account-id').value, 10);
+      const chatwootInboxId = parseInt(document.getElementById('form-inbox-id').value, 10);
+
+      if (!name || !teamsTenantId || isNaN(chatwootAccountId) || isNaN(chatwootInboxId)) {
+        showError('modal-error', 'Bitte alle Felder ausfüllen.');
+        return;
+      }
+
+      try {
+        const res = await apiFetch('/tenants', {
+          method: 'POST',
+          body: JSON.stringify({ name, teamsTenantId, chatwootAccountId, chatwootInboxId }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          showError('modal-error', data.error || 'Fehler beim Speichern.');
+          return;
+        }
+
+        closeModal();
+        await loadTenants();
+      } catch (err) {
+        if (err.message !== 'Nicht autorisiert') {
+          showError('modal-error', 'Fehler beim Speichern.');
+        }
+      }
+    }
+
+    // --- Delete Modal ---
+    function openDeleteModal(teamsTenantId, name) {
+      document.getElementById('delete-tenant-id').value = teamsTenantId;
+      document.getElementById('delete-tenant-name').textContent = name;
+      document.getElementById('delete-modal').classList.add('open');
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('delete-modal').classList.remove('open');
+    }
+
+    async function confirmDelete() {
+      const id = document.getElementById('delete-tenant-id').value;
+      try {
+        const res = await apiFetch('/tenants/' + encodeURIComponent(id), { method: 'DELETE' });
+        if (!res.ok && res.status !== 204) {
+          showError('dashboard-error', 'Fehler beim Löschen.');
+        }
+        closeDeleteModal();
+        await loadTenants();
+      } catch (err) {
+        if (err.message !== 'Nicht autorisiert') {
+          showError('dashboard-error', 'Fehler beim Löschen.');
+        }
+      }
+    }
+
+    // --- Helpers ---
+    function esc(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '-';
+      const d = new Date(iso);
+      return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+
+    function showError(containerId, msg) {
+      const el = document.getElementById(containerId);
+      el.innerHTML = '<div class="alert alert-error">' + esc(msg) + '</div>';
+    }
+
+    function clearError(containerId) {
+      document.getElementById(containerId).innerHTML = '';
+    }
+
+    // --- Init ---
+    if (token) {
+      showDashboard();
+    }
+  </script>
+</body>
+</html>

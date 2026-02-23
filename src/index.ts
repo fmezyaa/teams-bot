@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3';
 import express from 'express';
 import { config } from './config';
 import { logger } from './utils/logger';
@@ -6,27 +7,33 @@ import { TeamsBot } from './bot/teamsBot';
 import { ChatwootClient } from './chatwoot/chatwootClient';
 import { createChatwootWebhookRouter } from './chatwoot/chatwootWebhook';
 import { ConversationStore } from './mapping/conversationStore';
+import { TenantStore } from './mapping/tenantStore';
 import { BridgeService } from './services/bridgeService';
+import { createAdminRouter } from './admin/adminRouter';
+
+// Shared database instance
+const db = new Database(config.dbPath);
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 
 // Initialize components
 const adapter = createAdapter(
   config.microsoftAppId,
-  config.microsoftAppPassword,
-  config.microsoftAppTenantId
+  config.microsoftAppPassword
 );
 
 const chatwootClient = new ChatwootClient(
   config.chatwootBaseUrl,
-  config.chatwootApiAccessToken,
-  config.chatwootAccountId,
-  config.chatwootInboxId
+  config.chatwootApiAccessToken
 );
 
-const store = new ConversationStore(config.dbPath);
+const tenantStore = new TenantStore(db);
+const store = new ConversationStore(db);
 
 const bridgeService = new BridgeService(
   chatwootClient,
   store,
+  tenantStore,
   adapter,
   config.microsoftAppId
 );
@@ -57,6 +64,9 @@ app.post('/api/messages', async (req, res) => {
 // Chatwoot webhook endpoint
 app.use('/api/chatwoot', createChatwootWebhookRouter(bridgeService));
 
+// Admin API
+app.use('/api/admin', createAdminRouter(tenantStore, config.adminApiToken));
+
 // Start server
 app.listen(config.port, () => {
   logger.info({ port: config.port }, 'Chatwoot-Teams Bridge started');
@@ -66,12 +76,12 @@ app.listen(config.port, () => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down');
-  store.close();
+  db.close();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   logger.info('SIGINT received, shutting down');
-  store.close();
+  db.close();
   process.exit(0);
 });
