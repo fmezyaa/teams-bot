@@ -22,7 +22,7 @@ export function createChatwootWebhookRouter(bridgeService: BridgeService): Route
       return;
     }
 
-    if (payload.message_type !== 1) {
+    if (payload.message_type !== 1 && payload.message_type !== 'outgoing') {
       logger.debug({ messageType: payload.message_type }, 'Ignoring non-outgoing message');
       return;
     }

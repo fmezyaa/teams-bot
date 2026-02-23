@@ -28,7 +28,7 @@ export interface ChatwootWebhookPayload {
   event: string;
   id?: number;
   content?: string;
-  message_type?: number;
+  message_type?: number | string;
   private?: boolean;
   content_type?: string;
   conversation?: {
