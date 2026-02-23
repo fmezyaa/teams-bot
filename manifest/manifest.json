@@ -1,0 +1,46 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "{{MICROSOFT_APP_ID}}",
+  "developer": {
+    "name": "ezyaa",
+    "websiteUrl": "https://ezyaa.de",
+    "privacyUrl": "https://ezyaa.de/privacy",
+    "termsOfUseUrl": "https://ezyaa.de/terms"
+  },
+  "name": {
+    "short": "Support Assistant",
+    "full": "Chatwoot Support Assistant"
+  },
+  "description": {
+    "short": "AI-powered support assistant",
+    "full": "Connect with our AI support assistant directly in Microsoft Teams. Messages are handled by our support system."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#1F6FEB",
+  "bots": [
+    {
+      "botId": "{{MICROSOFT_APP_ID}}",
+      "scopes": ["personal", "team", "groupChat"],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": ["personal", "team", "groupChat"],
+          "commands": [
+            {
+              "title": "help",
+              "description": "Show help information"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": []
+}
