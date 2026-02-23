@@ -5,12 +5,11 @@ import {
 } from 'botbuilder';
 import { logger } from '../utils/logger';
 
-export function createAdapter(appId: string, appPassword: string, tenantId: string): CloudAdapter {
+export function createAdapter(appId: string, appPassword: string): CloudAdapter {
   const authConfig: ConfigurationBotFrameworkAuthenticationOptions = {
     MicrosoftAppId: appId,
     MicrosoftAppPassword: appPassword,
-    MicrosoftAppTenantId: tenantId,
-    MicrosoftAppType: 'SingleTenant',
+    MicrosoftAppType: 'MultiTenant',
   };
 
   const botFrameworkAuth = new ConfigurationBotFrameworkAuthentication(authConfig);
