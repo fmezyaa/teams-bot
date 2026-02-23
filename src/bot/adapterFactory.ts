@@ -16,8 +16,8 @@ export function createAdapter(appId: string, appPassword: string, tenantId: stri
   const botFrameworkAuth = new ConfigurationBotFrameworkAuthentication(authConfig);
   const adapter = new CloudAdapter(botFrameworkAuth);
 
-  adapter.onTurnError = async (context, error) => {
-    logger.error({ error }, 'Bot adapter onTurnError');
+  adapter.onTurnError = async (context, error: any) => {
+    logger.error({ err: error, message: error?.message, stack: error?.stack, code: error?.code }, 'Bot adapter onTurnError');
     try {
       await context.sendActivity('An error occurred processing your message. Please try again.');
     } catch (sendError) {

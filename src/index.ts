@@ -46,8 +46,8 @@ app.get('/health', (_req, res) => {
 app.post('/api/messages', async (req, res) => {
   try {
     await adapter.process(req, res, (context) => bot.run(context));
-  } catch (error) {
-    logger.error({ error }, 'Error processing Teams message');
+  } catch (error: any) {
+    logger.error({ err: error, message: error?.message, stack: error?.stack, code: error?.code }, 'Error processing Teams message');
     if (!res.headersSent) {
       res.status(500).json({ error: 'Internal server error' });
     }
