@@ -58,10 +58,10 @@ export class TeamsBot extends TeamsActivityHandler {
       return;
     }
 
-    // Extract tenant ID
-    const teamsTenantId = activity.conversation.tenantId;
+    // Extract tenant ID (channelData.tenant.id is the most reliable source in Teams)
+    const teamsTenantId = activity.channelData?.tenant?.id || activity.conversation.tenantId;
     if (!teamsTenantId) {
-      logger.warn({ conversationId: activity.conversation.id }, 'No tenant ID found in Teams activity');
+      logger.warn({ conversationId: activity.conversation.id, channelData: activity.channelData }, 'No tenant ID found in Teams activity');
       await context.sendActivity('Could not determine your organization. Please try again.');
       return;
     }
