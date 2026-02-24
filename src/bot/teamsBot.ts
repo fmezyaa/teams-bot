@@ -33,7 +33,7 @@ export class TeamsBot extends TeamsActivityHandler {
       for (const member of membersAdded) {
         if (member.id !== context.activity.recipient.id) {
           await context.sendActivity(
-            'Hello! I\'m the support assistant. Send me a message and I\'ll connect you with our team.'
+            'Hallo, ich bin ezyaa! Schreib mir einfach, wenn du Fragen hast oder markiere mich mit "@ezyaa" in einem Kanal, wenn ich dir weiterhelfen soll.'
           );
         }
       }
