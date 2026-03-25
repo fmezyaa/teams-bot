@@ -23,20 +23,49 @@ export class ConversationStore {
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         PRIMARY KEY (tenant_id, teams_user_id)
       );
+    `);
 
-      CREATE TABLE IF NOT EXISTS conversation_mappings (
-        tenant_id TEXT NOT NULL DEFAULT '',
-        teams_conversation_id TEXT NOT NULL,
-        teams_user_id TEXT NOT NULL,
-        chatwoot_conversation_id INTEGER NOT NULL UNIQUE,
-        conversation_reference TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-        PRIMARY KEY (tenant_id, teams_conversation_id, teams_user_id)
-      );
+    // Check if conversation_mappings needs migration (remove UNIQUE from chatwoot_conversation_id)
+    const tableInfo = this.db.prepare(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND name='conversation_mappings'"
+    ).get() as any;
 
+    if (tableInfo?.sql?.includes('UNIQUE')) {
+      // Old schema: chatwoot_conversation_id has UNIQUE constraint — must recreate table
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS conversation_mappings_new (
+          tenant_id TEXT NOT NULL DEFAULT '',
+          teams_conversation_id TEXT NOT NULL,
+          teams_user_id TEXT NOT NULL,
+          chatwoot_conversation_id INTEGER NOT NULL,
+          conversation_reference TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (tenant_id, teams_conversation_id, teams_user_id)
+        );
+        INSERT OR IGNORE INTO conversation_mappings_new SELECT * FROM conversation_mappings;
+        DROP TABLE conversation_mappings;
+        ALTER TABLE conversation_mappings_new RENAME TO conversation_mappings;
+      `);
+      logger.info('Migrated conversation_mappings: removed UNIQUE constraint from chatwoot_conversation_id');
+    } else if (!tableInfo) {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS conversation_mappings (
+          tenant_id TEXT NOT NULL DEFAULT '',
+          teams_conversation_id TEXT NOT NULL,
+          teams_user_id TEXT NOT NULL,
+          chatwoot_conversation_id INTEGER NOT NULL,
+          conversation_reference TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (tenant_id, teams_conversation_id, teams_user_id)
+        );
+      `);
+    }
+
+    this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_conversation_chatwoot
-        ON conversation_mappings(chatwoot_conversation_id);
+        ON conversation_mappings(tenant_id, chatwoot_conversation_id);
     `);
   }
 
@@ -86,10 +115,10 @@ export class ConversationStore {
     };
   }
 
-  getConversationByChatwootId(chatwootConversationId: number): ConversationMapping | undefined {
+  getConversationByChatwootId(tenantId: string, chatwootConversationId: number): ConversationMapping | undefined {
     const row = this.db.prepare(
-      'SELECT tenant_id, teams_conversation_id, teams_user_id, chatwoot_conversation_id, conversation_reference, created_at, updated_at FROM conversation_mappings WHERE chatwoot_conversation_id = ?'
-    ).get(chatwootConversationId) as any;
+      'SELECT tenant_id, teams_conversation_id, teams_user_id, chatwoot_conversation_id, conversation_reference, created_at, updated_at FROM conversation_mappings WHERE tenant_id = ? AND chatwoot_conversation_id = ?'
+    ).get(tenantId, chatwootConversationId) as any;
 
     if (!row) return undefined;
 

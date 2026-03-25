@@ -94,12 +94,25 @@ export class BridgeService {
 
   async handleChatwootWebhook(payload: ChatwootWebhookPayload): Promise<void> {
     const chatwootConversationId = payload.conversation!.id;
+    const chatwootAccountId = payload.account?.id;
     const content = payload.content!;
 
-    // Look up the Teams conversation mapping (globally unique by chatwoot_conversation_id)
-    const mapping = this.store.getConversationByChatwootId(chatwootConversationId);
+    // Resolve tenant from Chatwoot account ID
+    if (!chatwootAccountId) {
+      logger.warn({ chatwootConversationId }, 'Chatwoot webhook missing account ID');
+      return;
+    }
+
+    const tenant = this.tenantStore.getByChatwootAccountId(chatwootAccountId);
+    if (!tenant) {
+      logger.warn({ chatwootAccountId, chatwootConversationId }, 'No tenant configured for Chatwoot account');
+      return;
+    }
+
+    // Look up the Teams conversation mapping scoped to tenant
+    const mapping = this.store.getConversationByChatwootId(tenant.teamsTenantId, chatwootConversationId);
     if (!mapping) {
-      logger.warn({ chatwootConversationId }, 'No Teams mapping found for Chatwoot conversation');
+      logger.warn({ chatwootConversationId, chatwootAccountId }, 'No Teams mapping found for Chatwoot conversation');
       return;
     }
 
