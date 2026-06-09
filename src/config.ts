@@ -26,5 +26,12 @@ export const config = {
 
   bridgeBaseUrl: required('BRIDGE_BASE_URL').replace(/\/+$/, ''),
   port: parseInt(optional('PORT', '3978'), 10),
-  dbPath: optional('DB_PATH', '/data/bridge.db'),
+
+  db: {
+    host: required('DB_HOST'),
+    port: parseInt(optional('DB_PORT', '5432'), 10),
+    user: required('DB_USERNAME'),
+    password: required('DB_PASSWORD'),
+    database: required('DB_DATABASE'),
+  },
 } as const;

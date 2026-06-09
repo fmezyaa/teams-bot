@@ -1,7 +1,7 @@
-import Database from 'better-sqlite3';
 import express from 'express';
 import { config } from './config';
 import { logger } from './utils/logger';
+import { pool, initSchema } from './db';
 import { createAdapter } from './bot/adapterFactory';
 import { TeamsBot } from './bot/teamsBot';
 import { ChatwootClient } from './chatwoot/chatwootClient';
@@ -10,11 +10,6 @@ import { ConversationStore } from './mapping/conversationStore';
 import { TenantStore } from './mapping/tenantStore';
 import { BridgeService } from './services/bridgeService';
 import { createAdminRouter } from './admin/adminRouter';
-
-// Shared database instance
-const db = new Database(config.dbPath);
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
 
 // Initialize components
 const adapter = createAdapter(
@@ -28,8 +23,8 @@ const chatwootClient = new ChatwootClient(
   config.chatwootApiAccessToken
 );
 
-const tenantStore = new TenantStore(db);
-const store = new ConversationStore(db);
+const tenantStore = new TenantStore(pool);
+const store = new ConversationStore(pool);
 
 const bridgeService = new BridgeService(
   chatwootClient,
@@ -69,20 +64,31 @@ app.use('/api/chatwoot', createChatwootWebhookRouter(bridgeService));
 app.use('/api/admin', createAdminRouter(tenantStore, config.adminApiToken));
 
 // Start server
-app.listen(config.port, () => {
-  logger.info({ port: config.port }, 'Chatwoot-Teams Bridge started');
-  logger.info({ bridgeBaseUrl: config.bridgeBaseUrl }, 'Bridge base URL');
+async function start(): Promise<void> {
+  await initSchema();
+
+  app.listen(config.port, () => {
+    logger.info({ port: config.port }, 'Chatwoot-Teams Bridge started');
+    logger.info({ bridgeBaseUrl: config.bridgeBaseUrl }, 'Bridge base URL');
+  });
+}
+
+start().catch((error) => {
+  logger.error({ err: error }, 'Failed to start Chatwoot-Teams Bridge');
+  process.exit(1);
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down');
-  db.close();
+async function shutdown(signal: string): Promise<void> {
+  logger.info(`${signal} received, shutting down`);
+  await pool.end();
   process.exit(0);
+}
+
+process.on('SIGTERM', () => {
+  void shutdown('SIGTERM');
 });
 
 process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down');
-  db.close();
-  process.exit(0);
+  void shutdown('SIGINT');
 });

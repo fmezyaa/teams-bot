@@ -19,7 +19,7 @@ RUN npm install --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 COPY public ./public
 
-RUN mkdir -p /data && chown -R node:node /app /data
+RUN chown -R node:node /app
 
 USER node
 ENTRYPOINT ["/sbin/tini", "--"]

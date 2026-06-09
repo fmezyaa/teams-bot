@@ -27,9 +27,9 @@ export function createAdminRouter(tenantStore: TenantStore, adminApiToken: strin
   });
 
   // GET /tenants - List all tenants
-  router.get('/tenants', (_req: Request, res: Response) => {
+  router.get('/tenants', async (_req: Request, res: Response) => {
     try {
-      const tenants = tenantStore.getAll();
+      const tenants = await tenantStore.getAll();
       res.json(tenants);
     } catch (error) {
       logger.error({ error }, 'Failed to list tenants');
@@ -38,9 +38,9 @@ export function createAdminRouter(tenantStore: TenantStore, adminApiToken: strin
   });
 
   // GET /tenants/:id - Get single tenant
-  router.get('/tenants/:id', (req: Request, res: Response) => {
+  router.get('/tenants/:id', async (req: Request, res: Response) => {
     try {
-      const tenant = tenantStore.getByTeamsTenantId(req.params.id as string);
+      const tenant = await tenantStore.getByTeamsTenantId(req.params.id as string);
       if (!tenant) {
         res.status(404).json({ error: 'Tenant not found' });
         return;
@@ -53,7 +53,7 @@ export function createAdminRouter(tenantStore: TenantStore, adminApiToken: strin
   });
 
   // POST /tenants - Create or update tenant
-  router.post('/tenants', (req: Request, res: Response) => {
+  router.post('/tenants', async (req: Request, res: Response) => {
     try {
       const { teamsTenantId, chatwootAccountId, chatwootInboxId, name } = req.body;
 
@@ -67,7 +67,7 @@ export function createAdminRouter(tenantStore: TenantStore, adminApiToken: strin
         return;
       }
 
-      const tenant = tenantStore.upsert({ teamsTenantId, chatwootAccountId, chatwootInboxId, name });
+      const tenant = await tenantStore.upsert({ teamsTenantId, chatwootAccountId, chatwootInboxId, name });
       logger.info({ teamsTenantId, name }, 'Tenant upserted via Admin API');
       res.status(201).json(tenant);
     } catch (error) {
@@ -77,9 +77,9 @@ export function createAdminRouter(tenantStore: TenantStore, adminApiToken: strin
   });
 
   // DELETE /tenants/:id - Delete tenant
-  router.delete('/tenants/:id', (req: Request, res: Response) => {
+  router.delete('/tenants/:id', async (req: Request, res: Response) => {
     try {
-      const deleted = tenantStore.delete(req.params.id as string);
+      const deleted = await tenantStore.delete(req.params.id as string);
       if (!deleted) {
         res.status(404).json({ error: 'Tenant not found' });
         return;

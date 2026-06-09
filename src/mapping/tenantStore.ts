@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import { Pool } from 'pg';
 import { logger } from '../utils/logger';
 
 export interface Tenant {
@@ -11,80 +11,72 @@ export interface Tenant {
 }
 
 export class TenantStore {
-  private db: Database.Database;
+  private pool: Pool;
 
-  constructor(db: Database.Database) {
-    this.db = db;
-    this.init();
+  constructor(pool: Pool) {
+    this.pool = pool;
     logger.info('TenantStore initialized');
   }
 
-  private init(): void {
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS tenants (
-        teams_tenant_id TEXT PRIMARY KEY,
-        chatwoot_account_id INTEGER NOT NULL UNIQUE,
-        chatwoot_inbox_id INTEGER NOT NULL,
-        name TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-    `);
+  async getByTeamsTenantId(teamsTenantId: string): Promise<Tenant | undefined> {
+    const result = await this.pool.query(
+      'SELECT teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name, created_at, updated_at FROM teams_bot_tenants WHERE teams_tenant_id = $1',
+      [teamsTenantId]
+    );
+
+    if (result.rows.length === 0) return undefined;
+    return this.mapRow(result.rows[0]);
   }
 
-  getByTeamsTenantId(teamsTenantId: string): Tenant | undefined {
-    const row = this.db.prepare(
-      'SELECT teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name, created_at, updated_at FROM tenants WHERE teams_tenant_id = ?'
-    ).get(teamsTenantId) as any;
+  async getByChatwootAccountId(chatwootAccountId: number): Promise<Tenant | undefined> {
+    const result = await this.pool.query(
+      'SELECT teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name, created_at, updated_at FROM teams_bot_tenants WHERE chatwoot_account_id = $1',
+      [chatwootAccountId]
+    );
 
-    if (!row) return undefined;
-    return this.mapRow(row);
+    if (result.rows.length === 0) return undefined;
+    return this.mapRow(result.rows[0]);
   }
 
-  getByChatwootAccountId(chatwootAccountId: number): Tenant | undefined {
-    const row = this.db.prepare(
-      'SELECT teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name, created_at, updated_at FROM tenants WHERE chatwoot_account_id = ?'
-    ).get(chatwootAccountId) as any;
+  async getAll(): Promise<Tenant[]> {
+    const result = await this.pool.query(
+      'SELECT teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name, created_at, updated_at FROM teams_bot_tenants ORDER BY name'
+    );
 
-    if (!row) return undefined;
-    return this.mapRow(row);
+    return result.rows.map((row) => this.mapRow(row));
   }
 
-  getAll(): Tenant[] {
-    const rows = this.db.prepare(
-      'SELECT teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name, created_at, updated_at FROM tenants ORDER BY name'
-    ).all() as any[];
-
-    return rows.map((row) => this.mapRow(row));
-  }
-
-  upsert(tenant: Pick<Tenant, 'teamsTenantId' | 'chatwootAccountId' | 'chatwootInboxId' | 'name'>): Tenant {
-    this.db.prepare(`
-      INSERT INTO tenants (teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(teams_tenant_id) DO UPDATE SET
+  async upsert(tenant: Pick<Tenant, 'teamsTenantId' | 'chatwootAccountId' | 'chatwootInboxId' | 'name'>): Promise<Tenant> {
+    const result = await this.pool.query(
+      `
+      INSERT INTO teams_bot_tenants (teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (teams_tenant_id) DO UPDATE SET
         chatwoot_account_id = excluded.chatwoot_account_id,
         chatwoot_inbox_id = excluded.chatwoot_inbox_id,
         name = excluded.name,
-        updated_at = datetime('now')
-    `).run(tenant.teamsTenantId, tenant.chatwootAccountId, tenant.chatwootInboxId, tenant.name);
+        updated_at = now()
+      RETURNING teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name, created_at, updated_at
+      `,
+      [tenant.teamsTenantId, tenant.chatwootAccountId, tenant.chatwootInboxId, tenant.name]
+    );
 
-    return this.getByTeamsTenantId(tenant.teamsTenantId)!;
+    return this.mapRow(result.rows[0]);
   }
 
-  delete(teamsTenantId: string): boolean {
-    const result = this.db.prepare('DELETE FROM tenants WHERE teams_tenant_id = ?').run(teamsTenantId);
-    return result.changes > 0;
+  async delete(teamsTenantId: string): Promise<boolean> {
+    const result = await this.pool.query('DELETE FROM teams_bot_tenants WHERE teams_tenant_id = $1', [teamsTenantId]);
+    return (result.rowCount ?? 0) > 0;
   }
 
   private mapRow(row: any): Tenant {
     return {
       teamsTenantId: row.teams_tenant_id,
-      chatwootAccountId: row.chatwoot_account_id,
-      chatwootInboxId: row.chatwoot_inbox_id,
+      chatwootAccountId: Number(row.chatwoot_account_id),
+      chatwootInboxId: Number(row.chatwoot_inbox_id),
       name: row.name,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
+      createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+      updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
     };
   }
 }

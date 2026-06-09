@@ -5,8 +5,6 @@ services:
       - "${PORT:-3978}:${PORT:-3978}"
     env_file:
       - .env
-    volumes:
-      - bridge-data:/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${PORT:-3978}/health"]
@@ -14,6 +12,3 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-
-volumes:
-  bridge-data:

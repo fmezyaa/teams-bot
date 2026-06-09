@@ -40,7 +40,7 @@ export class BridgeService {
     const { teamsTenantId, teamsUserId, teamsConversationId, userName, userEmail, text, conversationReference } = payload;
 
     // Resolve tenant
-    const tenant = this.tenantStore.getByTeamsTenantId(teamsTenantId);
+    const tenant = await this.tenantStore.getByTeamsTenantId(teamsTenantId);
     if (!tenant) {
       logger.warn({ teamsTenantId }, 'No tenant configured for Teams tenant ID');
       throw new Error(`No tenant configured for Teams tenant ID: ${teamsTenantId}`);
@@ -49,7 +49,7 @@ export class BridgeService {
     const { chatwootAccountId, chatwootInboxId } = tenant;
 
     // 1. Find or create Chatwoot contact
-    let contactMapping = this.store.getContactByTeamsUserId(teamsTenantId, teamsUserId);
+    let contactMapping = await this.store.getContactByTeamsUserId(teamsTenantId, teamsUserId);
     let chatwootContactId: number;
 
     if (contactMapping) {
@@ -57,11 +57,11 @@ export class BridgeService {
     } else {
       const contact = await this.chatwootClient.findOrCreateContact(chatwootAccountId, teamsUserId, userName, userEmail);
       chatwootContactId = contact.id;
-      this.store.upsertContact(teamsTenantId, teamsUserId, chatwootContactId, userName, userEmail);
+      await this.store.upsertContact(teamsTenantId, teamsUserId, chatwootContactId, userName, userEmail);
     }
 
     // 2. Find or create Chatwoot conversation
-    let conversationMapping = this.store.getConversation(teamsTenantId, teamsConversationId, teamsUserId);
+    let conversationMapping = await this.store.getConversation(teamsTenantId, teamsConversationId, teamsUserId);
     let chatwootConversationId: number;
 
     if (conversationMapping) {
@@ -73,7 +73,7 @@ export class BridgeService {
     }
 
     // 3. Store/update conversation reference (needed for proactive messages back to Teams)
-    this.store.upsertConversation(
+    await this.store.upsertConversation(
       teamsTenantId,
       teamsConversationId,
       teamsUserId,
@@ -103,14 +103,14 @@ export class BridgeService {
       return;
     }
 
-    const tenant = this.tenantStore.getByChatwootAccountId(chatwootAccountId);
+    const tenant = await this.tenantStore.getByChatwootAccountId(chatwootAccountId);
     if (!tenant) {
       logger.warn({ chatwootAccountId, chatwootConversationId }, 'No tenant configured for Chatwoot account');
       return;
     }
 
     // Look up the Teams conversation mapping scoped to tenant
-    const mapping = this.store.getConversationByChatwootId(tenant.teamsTenantId, chatwootConversationId);
+    const mapping = await this.store.getConversationByChatwootId(tenant.teamsTenantId, chatwootConversationId);
     if (!mapping) {
       logger.warn({ chatwootConversationId, chatwootAccountId }, 'No Teams mapping found for Chatwoot conversation');
       return;
