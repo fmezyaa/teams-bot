@@ -52,5 +52,15 @@ export async function initSchema(): Promise<void> {
       ON teams_bot_conversation_mappings (tenant_id, chatwoot_conversation_id);
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS teams_bot_dm_refs (
+      tenant_id TEXT NOT NULL,
+      teams_user_id TEXT NOT NULL,
+      conversation_reference TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (tenant_id, teams_user_id)
+    );
+  `);
+
   logger.info('Database schema initialized');
 }

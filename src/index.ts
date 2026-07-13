@@ -60,6 +60,38 @@ app.post('/api/messages', async (req, res) => {
 // Chatwoot webhook endpoint
 app.use('/api/chatwoot', createChatwootWebhookRouter(bridgeService));
 
+// Proactive send (campaign runner)
+app.post('/api/proactive/send', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Missing Authorization' });
+    return;
+  }
+  const token = authHeader.slice(7);
+  if (token !== config.proactiveApiToken) {
+    res.status(403).json({ error: 'Invalid token' });
+    return;
+  }
+
+  const { teamsTenantId, teamsUserId, text, target } = req.body ?? {};
+  if (!teamsTenantId || !teamsUserId || !text) {
+    res.status(400).json({ error: 'teamsTenantId, teamsUserId and text are required' });
+    return;
+  }
+  if (target && target !== 'dm') {
+    res.status(400).json({ error: 'Only target=dm is supported' });
+    return;
+  }
+
+  try {
+    await bridgeService.sendProactiveDm({ teamsTenantId, teamsUserId, text, target: 'dm' });
+    res.status(200).json({ ok: true });
+  } catch (error: any) {
+    logger.error({ error }, 'Proactive send failed');
+    res.status(500).json({ error: error?.message ?? 'send_failed' });
+  }
+});
+
 // Admin API
 app.use('/api/admin', createAdminRouter(tenantStore, config.adminApiToken));
 

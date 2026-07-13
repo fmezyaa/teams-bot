@@ -95,4 +95,33 @@ export class ConversationStore {
       updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
     };
   }
+
+  async getDmConversationReference(
+    tenantId: string,
+    teamsUserId: string,
+  ): Promise<ConversationReference | undefined> {
+    const result = await this.pool.query(
+      'SELECT conversation_reference FROM teams_bot_dm_refs WHERE tenant_id = $1 AND teams_user_id = $2',
+      [tenantId, teamsUserId],
+    );
+    if (result.rows.length === 0) return undefined;
+    return JSON.parse(result.rows[0].conversation_reference);
+  }
+
+  async upsertDmConversationReference(
+    tenantId: string,
+    teamsUserId: string,
+    conversationReference: ConversationReference,
+  ): Promise<void> {
+    await this.pool.query(
+      `
+      INSERT INTO teams_bot_dm_refs (tenant_id, teams_user_id, conversation_reference)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (tenant_id, teams_user_id) DO UPDATE SET
+        conversation_reference = excluded.conversation_reference,
+        updated_at = now()
+      `,
+      [tenantId, teamsUserId, JSON.stringify(conversationReference)],
+    );
+  }
 }

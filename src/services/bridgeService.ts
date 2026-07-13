@@ -4,6 +4,7 @@ import { ChatwootClient } from '../chatwoot/chatwootClient';
 import { ChatwootWebhookPayload } from '../chatwoot/types';
 import { ConversationStore } from '../mapping/conversationStore';
 import { TenantStore } from '../mapping/tenantStore';
+import { GraphProactiveService } from './graphProactiveService';
 
 export interface TeamsMessagePayload {
   teamsTenantId: string;
@@ -21,6 +22,7 @@ export class BridgeService {
   private tenantStore: TenantStore;
   private adapter: CloudAdapter;
   private appId: string;
+  private graphProactive: GraphProactiveService;
 
   constructor(
     chatwootClient: ChatwootClient,
@@ -34,6 +36,7 @@ export class BridgeService {
     this.tenantStore = tenantStore;
     this.adapter = adapter;
     this.appId = appId;
+    this.graphProactive = new GraphProactiveService();
   }
 
   async handleTeamsMessage(payload: TeamsMessagePayload): Promise<void> {
@@ -80,6 +83,14 @@ export class BridgeService {
       chatwootConversationId,
       conversationReference as ConversationReference
     );
+
+    if (conversationReference.conversation?.conversationType === 'personal') {
+      await this.store.upsertDmConversationReference(
+        teamsTenantId,
+        teamsUserId,
+        conversationReference as ConversationReference,
+      );
+    }
 
     // 4. Send message to Chatwoot as incoming (from user)
     await this.chatwootClient.sendMessage(chatwootAccountId, chatwootConversationId, text, 'incoming');
@@ -141,5 +152,51 @@ export class BridgeService {
       }, 'Failed to send proactive message to Teams');
       throw error;
     }
+  }
+
+  async sendProactiveDm(opts: {
+    teamsTenantId: string;
+    teamsUserId: string;
+    text: string;
+    target?: 'dm';
+  }): Promise<void> {
+    const { teamsTenantId, teamsUserId, text } = opts;
+    let conversationReference = await this.store.getDmConversationReference(
+      teamsTenantId,
+      teamsUserId,
+    );
+
+    if (!conversationReference) {
+      const chat = await this.graphProactive.ensurePersonalChat(teamsTenantId, teamsUserId);
+      if (!chat) {
+        throw new Error('Could not resolve Teams personal chat for proactive message');
+      }
+      conversationReference = this.graphProactive.buildConversationReference({
+        tenantId: teamsTenantId,
+        teamsUserId,
+        chatId: chat.chatId,
+        serviceUrl: chat.serviceUrl,
+        botId: this.appId,
+      }) as ConversationReference;
+      await this.store.upsertDmConversationReference(
+        teamsTenantId,
+        teamsUserId,
+        conversationReference,
+      );
+    }
+
+    await this.adapter.continueConversationAsync(
+      this.appId,
+      conversationReference,
+      async (turnContext) => {
+        await turnContext.sendActivity(MessageFactory.text(text));
+      },
+    );
+
+    logger.info({
+      teamsTenantId,
+      teamsUserId,
+      textLength: text.length,
+    }, 'Proactive Teams DM sent');
   }
 }
