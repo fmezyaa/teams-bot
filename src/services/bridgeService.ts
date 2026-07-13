@@ -92,8 +92,52 @@ export class BridgeService {
       );
     }
 
-    // 4. Send message to Chatwoot as incoming (from user)
-    await this.chatwootClient.sendMessage(chatwootAccountId, chatwootConversationId, text, 'incoming');
+    // 4. Send message to Chatwoot as incoming (from user).
+    //    Recovery: Wird die gemappte Chatwoot-Conversation zwischenzeitlich
+    //    geloescht (z.B. manuell), antwortet Chatwoot mit 404. Dann ist die
+    //    gespeicherte Zuordnung tot — ohne Recovery wuerde jede weitere
+    //    Teams-Nachricht dieses Chats dauerhaft 404en. Wir legen daher Kontakt
+    //    + Conversation neu an, aktualisieren das Mapping und senden erneut.
+    try {
+      await this.chatwootClient.sendMessage(chatwootAccountId, chatwootConversationId, text, 'incoming');
+    } catch (error) {
+      if (!BridgeService.isNotFound(error)) {
+        throw error;
+      }
+      logger.warn({
+        teamsTenantId,
+        teamsUserId,
+        chatwootAccountId,
+        staleChatwootConversationId: chatwootConversationId,
+      }, 'Chatwoot conversation not found (404) — recreating contact + conversation and retrying');
+
+      // Kontakt neu sicherstellen (Loeschung der Conversation laesst den Kontakt
+      // i.d.R. bestehen; findOrCreate ist via identifier idempotent und deckt
+      // auch den Fall ab, dass der Kontakt mitgeloescht wurde).
+      const contact = await this.chatwootClient.findOrCreateContact(chatwootAccountId, teamsUserId, userName, userEmail);
+      await this.store.upsertContact(teamsTenantId, teamsUserId, contact.id, userName, userEmail);
+
+      const sourceId = `teams:${teamsConversationId}:${teamsUserId}`;
+      const conversation = await this.chatwootClient.createConversation(chatwootAccountId, chatwootInboxId, contact.id, sourceId);
+      chatwootConversationId = conversation.id;
+
+      await this.store.upsertConversation(
+        teamsTenantId,
+        teamsConversationId,
+        teamsUserId,
+        chatwootConversationId,
+        conversationReference as ConversationReference
+      );
+
+      await this.chatwootClient.sendMessage(chatwootAccountId, chatwootConversationId, text, 'incoming');
+
+      logger.info({
+        teamsTenantId,
+        teamsUserId,
+        chatwootAccountId,
+        chatwootConversationId,
+      }, 'Recovered from stale Chatwoot conversation (recreated)');
+    }
 
     logger.info({
       teamsTenantId,
@@ -101,6 +145,12 @@ export class BridgeService {
       chatwootAccountId,
       chatwootConversationId,
     }, 'Teams → Chatwoot message forwarded');
+  }
+
+  /** True, wenn der Fehler ein HTTP-404 von Chatwoot (Axios) ist. */
+  private static isNotFound(error: unknown): boolean {
+    const status = (error as { response?: { status?: number } } | undefined)?.response?.status;
+    return status === 404;
   }
 
   async handleChatwootWebhook(payload: ChatwootWebhookPayload): Promise<void> {
