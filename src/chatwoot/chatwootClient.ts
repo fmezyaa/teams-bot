@@ -36,6 +36,24 @@ export class ChatwootClient {
     return contacts.find((c) => c.identifier === teamsUserId) ?? contacts[0];
   }
 
+  async getContact(accountId: number, contactId: number): Promise<ChatwootContact | undefined> {
+    try {
+      const response = await this.api.get(`/accounts/${accountId}/contacts/${contactId}`);
+      const payload = response.data?.payload ?? response.data;
+      const contact = payload?.contact ?? payload;
+      if (!contact?.id) return undefined;
+      return {
+        id: Number(contact.id),
+        name: contact.name ?? '',
+        email: contact.email,
+        identifier: contact.identifier,
+      };
+    } catch (error) {
+      logger.error({ error, contactId, accountId }, 'Failed to get contact');
+      return undefined;
+    }
+  }
+
   async updateContact(
     accountId: number,
     contactId: number,

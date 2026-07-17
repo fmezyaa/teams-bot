@@ -84,8 +84,13 @@ app.post('/api/proactive/send', async (req, res) => {
   }
 
   try {
-    await bridgeService.sendProactiveDm({ teamsTenantId, teamsUserId, text, target: 'dm' });
-    res.status(200).json({ ok: true });
+    const result = await bridgeService.sendProactiveDm({
+      teamsTenantId,
+      teamsUserId,
+      text,
+      target: 'dm',
+    });
+    res.status(200).json({ ok: true, chatId: result.chatId });
   } catch (error: any) {
     logger.error({ error }, 'Proactive send failed');
     res.status(500).json({ error: error?.message ?? 'send_failed' });

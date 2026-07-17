@@ -37,6 +37,26 @@ export function createAdminRouter(tenantStore: TenantStore, adminApiToken: strin
     }
   });
 
+  // GET /tenants/by-account/:chatwootAccountId
+  router.get('/tenants/by-account/:chatwootAccountId', async (req: Request, res: Response) => {
+    try {
+      const accountId = Number(req.params.chatwootAccountId);
+      if (!Number.isFinite(accountId)) {
+        res.status(400).json({ error: 'chatwootAccountId must be a number' });
+        return;
+      }
+      const tenant = await tenantStore.getByChatwootAccountId(accountId);
+      if (!tenant) {
+        res.status(404).json({ error: 'Tenant not found' });
+        return;
+      }
+      res.json(tenant);
+    } catch (error) {
+      logger.error({ error, accountId: req.params.chatwootAccountId }, 'Failed to get tenant by account');
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // GET /tenants/:id - Get single tenant
   router.get('/tenants/:id', async (req: Request, res: Response) => {
     try {
@@ -55,10 +75,13 @@ export function createAdminRouter(tenantStore: TenantStore, adminApiToken: strin
   // POST /tenants - Create or update tenant
   router.post('/tenants', async (req: Request, res: Response) => {
     try {
-      const { teamsTenantId, chatwootAccountId, chatwootInboxId, name } = req.body;
+      const { teamsTenantId, chatwootAccountId, chatwootInboxId, name, greetingEnabled, greetingText } =
+        req.body;
 
       if (!teamsTenantId || !chatwootAccountId || !chatwootInboxId || !name) {
-        res.status(400).json({ error: 'Missing required fields: teamsTenantId, chatwootAccountId, chatwootInboxId, name' });
+        res.status(400).json({
+          error: 'Missing required fields: teamsTenantId, chatwootAccountId, chatwootInboxId, name',
+        });
         return;
       }
 
@@ -67,7 +90,14 @@ export function createAdminRouter(tenantStore: TenantStore, adminApiToken: strin
         return;
       }
 
-      const tenant = await tenantStore.upsert({ teamsTenantId, chatwootAccountId, chatwootInboxId, name });
+      const tenant = await tenantStore.upsert({
+        teamsTenantId,
+        chatwootAccountId,
+        chatwootInboxId,
+        name,
+        greetingEnabled: Boolean(greetingEnabled),
+        greetingText: typeof greetingText === 'string' ? greetingText : null,
+      });
       logger.info({ teamsTenantId, name }, 'Tenant upserted via Admin API');
       res.status(201).json(tenant);
     } catch (error) {

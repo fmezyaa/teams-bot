@@ -20,7 +20,9 @@ export class TeamsBot extends TeamsActivityHandler {
       } catch (error: any) {
         logger.error({ error }, 'Error handling Teams message');
         if (error?.message?.startsWith('No tenant configured')) {
-          await context.sendActivity('This organization is not configured for support. Please contact your administrator.');
+          await context.sendActivity(
+            'This organization is not configured for support. Please contact your administrator.',
+          );
         } else {
           await context.sendActivity('Sorry, something went wrong processing your message.');
         }
@@ -30,11 +32,24 @@ export class TeamsBot extends TeamsActivityHandler {
 
     this.onMembersAdded(async (context, next) => {
       const membersAdded = context.activity.membersAdded || [];
-      for (const member of membersAdded) {
-        if (member.id !== context.activity.recipient.id) {
-          await context.sendActivity(
-            'Hey, ich bin Sara!🙋‍♀️ Du hast Fragen zu Prozessen, Abläufen oder anderen Themen hier bei all inclusive FITNESS? Frag einfach los, oder markiere mich mit "@Sara — Team-KI" in einem Kanal. Ich antworte dir sofort.☺️'
-          );
+      const teamsTenantId =
+        context.activity.channelData?.tenant?.id || context.activity.conversation.tenantId;
+
+      let greeting: { enabled: boolean; text: string } | null = null;
+      if (teamsTenantId) {
+        try {
+          greeting = await this.bridgeService.getGreetingForTenant(teamsTenantId);
+        } catch (error) {
+          logger.warn({ error, teamsTenantId }, 'Could not load tenant greeting settings');
+        }
+      }
+
+      // Default: no greeting — silent app installs for campaigns must not spam users.
+      if (greeting?.enabled && greeting.text) {
+        for (const member of membersAdded) {
+          if (member.id !== context.activity.recipient.id) {
+            await context.sendActivity(greeting.text);
+          }
         }
       }
       await next();
@@ -45,9 +60,11 @@ export class TeamsBot extends TeamsActivityHandler {
     const activity = context.activity;
     let text = activity.text || '';
 
-    // Strip @mention in channel messages
-    if (activity.conversation.conversationType === 'channel' || activity.conversation.conversationType === 'groupChat') {
-      const mentions = TurnContext.removeMentionText(activity, activity.recipient.id);
+    if (
+      activity.conversation.conversationType === 'channel' ||
+      activity.conversation.conversationType === 'groupChat'
+    ) {
+      TurnContext.removeMentionText(activity, activity.recipient.id);
       text = activity.text?.trim() || '';
     } else {
       text = text.trim();
@@ -58,18 +75,18 @@ export class TeamsBot extends TeamsActivityHandler {
       return;
     }
 
-    // Extract tenant ID (channelData.tenant.id is the most reliable source in Teams)
     const teamsTenantId = activity.channelData?.tenant?.id || activity.conversation.tenantId;
     if (!teamsTenantId) {
-      logger.warn({ conversationId: activity.conversation.id, channelData: activity.channelData }, 'No tenant ID found in Teams activity');
+      logger.warn(
+        { conversationId: activity.conversation.id, channelData: activity.channelData },
+        'No tenant ID found in Teams activity',
+      );
       await context.sendActivity('Could not determine your organization. Please try again.');
       return;
     }
 
-    // Send typing indicator
     await context.sendActivities([{ type: 'typing' } as Partial<Activity>]);
 
-    // Get user info from Teams
     let userName = activity.from.name || 'Teams User';
     let userEmail: string | undefined;
     const teamsUserId = activity.from.aadObjectId || activity.from.id;
@@ -82,7 +99,6 @@ export class TeamsBot extends TeamsActivityHandler {
       logger.warn({ error, userId: activity.from.id }, 'Could not fetch Teams member info');
     }
 
-    // Build conversation reference for proactive messaging
     const conversationReference = TurnContext.getConversationReference(activity);
 
     await this.bridgeService.handleTeamsMessage({
@@ -95,11 +111,14 @@ export class TeamsBot extends TeamsActivityHandler {
       conversationReference,
     });
 
-    logger.info({
-      teamsTenantId,
-      teamsUserId,
-      conversationType: activity.conversation.conversationType,
-      textLength: text.length,
-    }, 'Forwarded Teams message to Chatwoot');
+    logger.info(
+      {
+        teamsTenantId,
+        teamsUserId,
+        conversationType: activity.conversation.conversationType,
+        textLength: text.length,
+      },
+      'Forwarded Teams message to Chatwoot',
+    );
   }
 }

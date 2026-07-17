@@ -6,9 +6,19 @@ export interface Tenant {
   chatwootAccountId: number;
   chatwootInboxId: number;
   name: string;
+  greetingEnabled: boolean;
+  greetingText: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
+export type TenantUpsertInput = Pick<
+  Tenant,
+  'teamsTenantId' | 'chatwootAccountId' | 'chatwootInboxId' | 'name'
+> & {
+  greetingEnabled?: boolean;
+  greetingText?: string | null;
+};
 
 export class TenantStore {
   private pool: Pool;
@@ -20,8 +30,10 @@ export class TenantStore {
 
   async getByTeamsTenantId(teamsTenantId: string): Promise<Tenant | undefined> {
     const result = await this.pool.query(
-      'SELECT teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name, created_at, updated_at FROM teams_bot_tenants WHERE teams_tenant_id = $1',
-      [teamsTenantId]
+      `SELECT teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name,
+              greeting_enabled, greeting_text, created_at, updated_at
+         FROM teams_bot_tenants WHERE teams_tenant_id = $1`,
+      [teamsTenantId],
     );
 
     if (result.rows.length === 0) return undefined;
@@ -30,8 +42,10 @@ export class TenantStore {
 
   async getByChatwootAccountId(chatwootAccountId: number): Promise<Tenant | undefined> {
     const result = await this.pool.query(
-      'SELECT teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name, created_at, updated_at FROM teams_bot_tenants WHERE chatwoot_account_id = $1',
-      [chatwootAccountId]
+      `SELECT teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name,
+              greeting_enabled, greeting_text, created_at, updated_at
+         FROM teams_bot_tenants WHERE chatwoot_account_id = $1`,
+      [chatwootAccountId],
     );
 
     if (result.rows.length === 0) return undefined;
@@ -40,32 +54,49 @@ export class TenantStore {
 
   async getAll(): Promise<Tenant[]> {
     const result = await this.pool.query(
-      'SELECT teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name, created_at, updated_at FROM teams_bot_tenants ORDER BY name'
+      `SELECT teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name,
+              greeting_enabled, greeting_text, created_at, updated_at
+         FROM teams_bot_tenants ORDER BY name`,
     );
 
     return result.rows.map((row) => this.mapRow(row));
   }
 
-  async upsert(tenant: Pick<Tenant, 'teamsTenantId' | 'chatwootAccountId' | 'chatwootInboxId' | 'name'>): Promise<Tenant> {
+  async upsert(tenant: TenantUpsertInput): Promise<Tenant> {
     const result = await this.pool.query(
       `
-      INSERT INTO teams_bot_tenants (teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO teams_bot_tenants (
+        teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name,
+        greeting_enabled, greeting_text
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
       ON CONFLICT (teams_tenant_id) DO UPDATE SET
         chatwoot_account_id = excluded.chatwoot_account_id,
         chatwoot_inbox_id = excluded.chatwoot_inbox_id,
         name = excluded.name,
+        greeting_enabled = excluded.greeting_enabled,
+        greeting_text = excluded.greeting_text,
         updated_at = now()
-      RETURNING teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name, created_at, updated_at
+      RETURNING teams_tenant_id, chatwoot_account_id, chatwoot_inbox_id, name,
+                greeting_enabled, greeting_text, created_at, updated_at
       `,
-      [tenant.teamsTenantId, tenant.chatwootAccountId, tenant.chatwootInboxId, tenant.name]
+      [
+        tenant.teamsTenantId,
+        tenant.chatwootAccountId,
+        tenant.chatwootInboxId,
+        tenant.name,
+        tenant.greetingEnabled ?? false,
+        tenant.greetingText ?? null,
+      ],
     );
 
     return this.mapRow(result.rows[0]);
   }
 
   async delete(teamsTenantId: string): Promise<boolean> {
-    const result = await this.pool.query('DELETE FROM teams_bot_tenants WHERE teams_tenant_id = $1', [teamsTenantId]);
+    const result = await this.pool.query('DELETE FROM teams_bot_tenants WHERE teams_tenant_id = $1', [
+      teamsTenantId,
+    ]);
     return (result.rowCount ?? 0) > 0;
   }
 
@@ -75,6 +106,8 @@ export class TenantStore {
       chatwootAccountId: Number(row.chatwoot_account_id),
       chatwootInboxId: Number(row.chatwoot_inbox_id),
       name: row.name,
+      greetingEnabled: Boolean(row.greeting_enabled),
+      greetingText: row.greeting_text ?? null,
       createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
       updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
     };

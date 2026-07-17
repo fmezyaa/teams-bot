@@ -5,6 +5,12 @@ import { logger } from '../utils/logger';
 
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 
+/**
+ * Default Bot Framework service URL for EMEA.
+ * Documented assumption for our deployment region.
+ */
+const DEFAULT_SERVICE_URL = 'https://smba.trafficmanager.net/emea/';
+
 export class GraphProactiveService {
   private tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
@@ -29,6 +35,10 @@ export class GraphProactiveService {
     return data.access_token;
   }
 
+  /**
+   * Ensures the Teams bot app is installed for the user and returns the
+   * personal bot↔user chat id (not an arbitrary one-on-one human chat).
+   */
   async ensurePersonalChat(
     tenantId: string,
     teamsUserId: string,
@@ -67,21 +77,39 @@ export class GraphProactiveService {
         }
       }
 
-      const chats = await axios.get<{
-        value: Array<{ id: string; chatType?: string }>;
-      }>(`${GRAPH}/users/${teamsUserId}/chats`, {
+      // Resolve the installation id for THIS bot app (not a random oneOnOne chat).
+      const installed = await axios.get<{
+        value: Array<{ id: string; teamsApp?: { externalId?: string; id?: string } }>;
+      }>(`${GRAPH}/users/${teamsUserId}/teamwork/installedApps`, {
         headers,
-        params: { $expand: 'members' },
+        params: {
+          $expand: 'teamsApp',
+          $filter: `teamsApp/externalId eq '${config.microsoftAppId}'`,
+        },
       });
 
-      const oneOnOne = (chats.data.value ?? []).find((c) => c.chatType === 'oneOnOne');
-      if (!oneOnOne?.id) {
+      const installationId = installed.data.value?.[0]?.id;
+      if (!installationId) {
+        logger.warn(
+          { teamsUserId, tenantId },
+          'Bot app installation not found after install attempt',
+        );
+        return null;
+      }
+
+      const chatRes = await axios.get<{ id: string }>(
+        `${GRAPH}/users/${teamsUserId}/teamwork/installedApps/${installationId}/chat`,
+        { headers },
+      );
+
+      if (!chatRes.data?.id) {
+        logger.warn({ teamsUserId, installationId }, 'Bot personal chat not found');
         return null;
       }
 
       return {
-        chatId: oneOnOne.id,
-        serviceUrl: 'https://smba.trafficmanager.net/emea/',
+        chatId: chatRes.data.id,
+        serviceUrl: DEFAULT_SERVICE_URL,
       };
     } catch (err: unknown) {
       logger.error({ err }, 'ensurePersonalChat failed');

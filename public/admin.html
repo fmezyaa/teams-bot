@@ -314,6 +314,19 @@
             <label for="form-inbox-id">Chatwoot Inbox ID</label>
             <input type="number" id="form-inbox-id" required min="1">
           </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="form-greeting-enabled">
+              Begrüßung bei App-Installation senden
+            </label>
+            <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.25rem;">
+              Standard aus — für Kampagnen empfohlen, damit stille App-Installationen keine Nachricht senden.
+            </p>
+          </div>
+          <div class="form-group">
+            <label for="form-greeting-text">Begrüßungstext (optional)</label>
+            <input type="text" id="form-greeting-text" placeholder="Hallo! Schreib mir gerne deine Frage…">
+          </div>
         </form>
       </div>
       <div class="modal-footer">
@@ -451,6 +464,8 @@
       document.getElementById('form-teams-id').removeAttribute('disabled');
       document.getElementById('form-account-id').value = '';
       document.getElementById('form-inbox-id').value = '';
+      document.getElementById('form-greeting-enabled').checked = false;
+      document.getElementById('form-greeting-text').value = '';
       clearError('modal-error');
       document.getElementById('tenant-modal').classList.add('open');
     }
@@ -469,6 +484,8 @@
         document.getElementById('form-teams-id').setAttribute('disabled', 'true');
         document.getElementById('form-account-id').value = t.chatwootAccountId;
         document.getElementById('form-inbox-id').value = t.chatwootInboxId;
+        document.getElementById('form-greeting-enabled').checked = !!t.greetingEnabled;
+        document.getElementById('form-greeting-text').value = t.greetingText || '';
         clearError('modal-error');
         document.getElementById('tenant-modal').classList.add('open');
       } catch {
@@ -485,6 +502,8 @@
       const teamsTenantId = document.getElementById('form-teams-id').value.trim();
       const chatwootAccountId = parseInt(document.getElementById('form-account-id').value, 10);
       const chatwootInboxId = parseInt(document.getElementById('form-inbox-id').value, 10);
+      const greetingEnabled = document.getElementById('form-greeting-enabled').checked;
+      const greetingText = document.getElementById('form-greeting-text').value.trim();
 
       if (!name || !teamsTenantId || isNaN(chatwootAccountId) || isNaN(chatwootInboxId)) {
         showError('modal-error', 'Bitte alle Felder ausfüllen.');
@@ -494,7 +513,14 @@
       try {
         const res = await apiFetch('/tenants', {
           method: 'POST',
-          body: JSON.stringify({ name, teamsTenantId, chatwootAccountId, chatwootInboxId }),
+          body: JSON.stringify({
+            name,
+            teamsTenantId,
+            chatwootAccountId,
+            chatwootInboxId,
+            greetingEnabled,
+            greetingText: greetingText || null,
+          }),
         });
 
         if (!res.ok) {
