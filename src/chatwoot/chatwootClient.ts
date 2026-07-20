@@ -55,6 +55,51 @@ export class ChatwootClient {
     return this.createContact(accountId, teamsUserId, name, email);
   }
 
+  async getContact(accountId: number, contactId: number): Promise<ChatwootContact> {
+    try {
+      const response = await this.api.get(`/accounts/${accountId}/contacts/${contactId}`);
+      return response.data.payload;
+    } catch (error) {
+      logger.error({ error, contactId, accountId }, 'Failed to get contact');
+      throw error;
+    }
+  }
+
+  /**
+   * Merge the given custom attributes into the contact's existing ones.
+   * Chatwoot's PATCH replaces the whole custom_attributes object, so we
+   * read-merge-write to preserve keys set by other systems. Skips the write
+   * when nothing would change.
+   */
+  async updateContactCustomAttributes(
+    accountId: number,
+    contactId: number,
+    attributes: Record<string, unknown>
+  ): Promise<void> {
+    const contact = await this.getContact(accountId, contactId);
+    const existing = contact.custom_attributes || {};
+    const merged = { ...existing, ...attributes };
+
+    const changed = Object.keys(attributes).some((key) => existing[key] !== attributes[key]);
+    if (!changed) {
+      logger.debug({ contactId, accountId }, 'Contact custom_attributes already up to date — skipping PATCH');
+      return;
+    }
+
+    try {
+      await this.api.patch(`/accounts/${accountId}/contacts/${contactId}`, {
+        custom_attributes: merged,
+      });
+      logger.info(
+        { contactId, accountId, keys: Object.keys(attributes) },
+        'Updated Chatwoot contact custom_attributes'
+      );
+    } catch (error) {
+      logger.error({ error, contactId, accountId }, 'Failed to update contact custom_attributes');
+      throw error;
+    }
+  }
+
   async createConversation(accountId: number, inboxId: number, contactId: number, sourceId?: string): Promise<ChatwootConversation> {
     try {
       const response = await this.api.post(`/accounts/${accountId}/conversations`, {

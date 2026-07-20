@@ -27,6 +27,15 @@ export const config = {
   bridgeBaseUrl: required('BRIDGE_BASE_URL').replace(/\/+$/, ''),
   port: parseInt(optional('PORT', '3978'), 10),
 
+  // Microsoft Graph (app-only, multi-tenant) — used for optional contact
+  // enrichment (Standort/Position/Region). Separate app registration from the
+  // Bot Framework app above; leave empty to disable enrichment globally.
+  graph: {
+    clientId: process.env.GRAPH_CLIENT_ID || '',
+    clientSecret: process.env.GRAPH_CLIENT_SECRET || '',
+    enabled: !!(process.env.GRAPH_CLIENT_ID && process.env.GRAPH_CLIENT_SECRET),
+  },
+
   db: {
     host: required('DB_HOST'),
     port: parseInt(optional('DB_PORT', '5432'), 10),

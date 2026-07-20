@@ -55,7 +55,7 @@ export function createAdminRouter(tenantStore: TenantStore, adminApiToken: strin
   // POST /tenants - Create or update tenant
   router.post('/tenants', async (req: Request, res: Response) => {
     try {
-      const { teamsTenantId, chatwootAccountId, chatwootInboxId, name } = req.body;
+      const { teamsTenantId, chatwootAccountId, chatwootInboxId, name, graphEnrichmentEnabled } = req.body;
 
       if (!teamsTenantId || !chatwootAccountId || !chatwootInboxId || !name) {
         res.status(400).json({ error: 'Missing required fields: teamsTenantId, chatwootAccountId, chatwootInboxId, name' });
@@ -67,7 +67,18 @@ export function createAdminRouter(tenantStore: TenantStore, adminApiToken: strin
         return;
       }
 
-      const tenant = await tenantStore.upsert({ teamsTenantId, chatwootAccountId, chatwootInboxId, name });
+      if (graphEnrichmentEnabled !== undefined && typeof graphEnrichmentEnabled !== 'boolean') {
+        res.status(400).json({ error: 'graphEnrichmentEnabled must be a boolean' });
+        return;
+      }
+
+      const tenant = await tenantStore.upsert({
+        teamsTenantId,
+        chatwootAccountId,
+        chatwootInboxId,
+        name,
+        graphEnrichmentEnabled: graphEnrichmentEnabled === true,
+      });
       logger.info({ teamsTenantId, name }, 'Tenant upserted via Admin API');
       res.status(201).json(tenant);
     } catch (error) {

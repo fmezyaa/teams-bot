@@ -3,6 +3,7 @@ export interface ChatwootContact {
   name: string;
   email?: string;
   identifier?: string;
+  custom_attributes?: Record<string, unknown>;
 }
 
 export interface ChatwootConversation {

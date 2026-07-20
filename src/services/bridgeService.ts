@@ -3,7 +3,8 @@ import { logger } from '../utils/logger';
 import { ChatwootClient } from '../chatwoot/chatwootClient';
 import { ChatwootWebhookPayload } from '../chatwoot/types';
 import { ConversationStore } from '../mapping/conversationStore';
-import { TenantStore } from '../mapping/tenantStore';
+import { TenantStore, Tenant } from '../mapping/tenantStore';
+import { EnrichmentService } from './enrichmentService';
 
 export interface TeamsMessagePayload {
   teamsTenantId: string;
@@ -21,19 +22,24 @@ export class BridgeService {
   private tenantStore: TenantStore;
   private adapter: CloudAdapter;
   private appId: string;
+  private enrichmentService?: EnrichmentService;
+  private graphEnabled: boolean;
 
   constructor(
     chatwootClient: ChatwootClient,
     store: ConversationStore,
     tenantStore: TenantStore,
     adapter: CloudAdapter,
-    appId: string
+    appId: string,
+    options: { enrichmentService?: EnrichmentService; graphEnabled?: boolean } = {}
   ) {
     this.chatwootClient = chatwootClient;
     this.store = store;
     this.tenantStore = tenantStore;
     this.adapter = adapter;
     this.appId = appId;
+    this.enrichmentService = options.enrichmentService;
+    this.graphEnabled = options.graphEnabled ?? false;
   }
 
   async handleTeamsMessage(payload: TeamsMessagePayload): Promise<void> {
@@ -59,6 +65,11 @@ export class BridgeService {
       chatwootContactId = contact.id;
       await this.store.upsertContact(teamsTenantId, teamsUserId, chatwootContactId, userName, userEmail);
     }
+
+    // Best-effort Microsoft Graph enrichment (Standort/Position/Region).
+    // Fire-and-forget: never awaited, never throws, so it cannot block or break
+    // the message flow. Gated per tenant + global Graph config.
+    this.maybeEnrichContact(tenant, chatwootContactId, teamsUserId);
 
     // 2. Find or create Chatwoot conversation
     let conversationMapping = await this.store.getConversation(teamsTenantId, teamsConversationId, teamsUserId);
@@ -106,6 +117,10 @@ export class BridgeService {
       const contact = await this.chatwootClient.findOrCreateContact(chatwootAccountId, teamsUserId, userName, userEmail);
       await this.store.upsertContact(teamsTenantId, teamsUserId, contact.id, userName, userEmail);
 
+      // Keep enrichment consistent when the contact is (re)created here. The
+      // TTL cache dedupes against the initial attempt above for the same user.
+      this.maybeEnrichContact(tenant, contact.id, teamsUserId);
+
       const sourceId = `teams:${teamsConversationId}:${teamsUserId}`;
       const conversation = await this.chatwootClient.createConversation(chatwootAccountId, chatwootInboxId, contact.id, sourceId);
       chatwootConversationId = conversation.id;
@@ -134,6 +149,28 @@ export class BridgeService {
       chatwootAccountId,
       chatwootConversationId,
     }, 'Teams → Chatwoot message forwarded');
+  }
+
+  /**
+   * Fire-and-forget contact enrichment via Microsoft Graph, gated by the global
+   * Graph config and the per-tenant `graphEnrichmentEnabled` flag. Deliberately
+   * not awaited; the underlying service never throws, and any residual rejection
+   * is swallowed so the message flow is never affected.
+   */
+  private maybeEnrichContact(tenant: Tenant, chatwootContactId: number, teamsUserId: string): void {
+    if (!this.graphEnabled || !this.enrichmentService || !tenant.graphEnrichmentEnabled) {
+      return;
+    }
+    void this.enrichmentService
+      .enrichContact({
+        teamsTenantId: tenant.teamsTenantId,
+        aadObjectId: teamsUserId,
+        chatwootAccountId: tenant.chatwootAccountId,
+        chatwootContactId,
+      })
+      .catch((error) => {
+        logger.warn({ error, teamsTenantId: tenant.teamsTenantId }, 'Unexpected enrichment rejection (ignored)');
+      });
   }
 
   /** True, wenn der Fehler ein HTTP-404 von Chatwoot (Axios) ist. */

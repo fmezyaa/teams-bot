@@ -17,9 +17,16 @@ export async function initSchema(): Promise<void> {
       chatwoot_account_id BIGINT NOT NULL UNIQUE,
       chatwoot_inbox_id BIGINT NOT NULL,
       name TEXT NOT NULL,
+      graph_enrichment_enabled BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+  `);
+
+  // Backfill the enrichment flag for pre-existing tenant tables.
+  await pool.query(`
+    ALTER TABLE teams_bot_tenants
+      ADD COLUMN IF NOT EXISTS graph_enrichment_enabled BOOLEAN NOT NULL DEFAULT false;
   `);
 
   await pool.query(`

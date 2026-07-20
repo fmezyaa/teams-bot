@@ -9,6 +9,8 @@ import { createChatwootWebhookRouter } from './chatwoot/chatwootWebhook';
 import { ConversationStore } from './mapping/conversationStore';
 import { TenantStore } from './mapping/tenantStore';
 import { BridgeService } from './services/bridgeService';
+import { EnrichmentService } from './services/enrichmentService';
+import { GraphClient } from './graph/graphClient';
 import { createAdminRouter } from './admin/adminRouter';
 
 // Initialize components
@@ -26,12 +28,25 @@ const chatwootClient = new ChatwootClient(
 const tenantStore = new TenantStore(pool);
 const store = new ConversationStore(pool);
 
+// Microsoft Graph contact enrichment (optional; only wired when configured).
+const enrichmentService = config.graph.enabled
+  ? new EnrichmentService(
+      new GraphClient(config.graph.clientId, config.graph.clientSecret),
+      chatwootClient
+    )
+  : undefined;
+
+if (config.graph.enabled) {
+  logger.info('Microsoft Graph enrichment enabled (per-tenant flag still required)');
+}
+
 const bridgeService = new BridgeService(
   chatwootClient,
   store,
   tenantStore,
   adapter,
-  config.microsoftAppId
+  config.microsoftAppId,
+  { enrichmentService, graphEnabled: config.graph.enabled }
 );
 
 const bot = new TeamsBot(bridgeService);
