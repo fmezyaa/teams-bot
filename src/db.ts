@@ -18,15 +18,25 @@ export async function initSchema(): Promise<void> {
       chatwoot_inbox_id BIGINT NOT NULL,
       name TEXT NOT NULL,
       graph_enrichment_enabled BOOLEAN NOT NULL DEFAULT false,
+      greeting_enabled BOOLEAN NOT NULL DEFAULT false,
+      greeting_text TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
 
-  // Backfill the enrichment flag for pre-existing tenant tables.
+  // Additive migrations for existing deployments.
   await pool.query(`
     ALTER TABLE teams_bot_tenants
       ADD COLUMN IF NOT EXISTS graph_enrichment_enabled BOOLEAN NOT NULL DEFAULT false;
+  `);
+  await pool.query(`
+    ALTER TABLE teams_bot_tenants
+      ADD COLUMN IF NOT EXISTS greeting_enabled BOOLEAN NOT NULL DEFAULT false;
+  `);
+  await pool.query(`
+    ALTER TABLE teams_bot_tenants
+      ADD COLUMN IF NOT EXISTS greeting_text TEXT;
   `);
 
   await pool.query(`
@@ -57,6 +67,21 @@ export async function initSchema(): Promise<void> {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_teams_bot_conversation_chatwoot
       ON teams_bot_conversation_mappings (tenant_id, chatwoot_conversation_id);
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_teams_bot_conversation_user
+      ON teams_bot_conversation_mappings (tenant_id, teams_user_id, updated_at DESC);
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS teams_bot_dm_refs (
+      tenant_id TEXT NOT NULL,
+      teams_user_id TEXT NOT NULL,
+      conversation_reference TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (tenant_id, teams_user_id)
+    );
   `);
 
   logger.info('Database schema initialized');

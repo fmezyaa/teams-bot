@@ -95,4 +95,63 @@ export class ConversationStore {
       updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
     };
   }
+
+  async getDmConversationReference(
+    tenantId: string,
+    teamsUserId: string,
+  ): Promise<ConversationReference | undefined> {
+    const result = await this.pool.query(
+      'SELECT conversation_reference FROM teams_bot_dm_refs WHERE tenant_id = $1 AND teams_user_id = $2',
+      [tenantId, teamsUserId],
+    );
+    if (result.rows.length === 0) return undefined;
+    return JSON.parse(result.rows[0].conversation_reference);
+  }
+
+  async upsertDmConversationReference(
+    tenantId: string,
+    teamsUserId: string,
+    conversationReference: ConversationReference,
+  ): Promise<void> {
+    await this.pool.query(
+      `
+      INSERT INTO teams_bot_dm_refs (tenant_id, teams_user_id, conversation_reference)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (tenant_id, teams_user_id) DO UPDATE SET
+        conversation_reference = excluded.conversation_reference,
+        updated_at = now()
+      `,
+      [tenantId, teamsUserId, JSON.stringify(conversationReference)],
+    );
+  }
+
+  /**
+   * Fallback for reply routing: Bot Framework conversation IDs (`a:...`) often
+   * differ from Graph chat IDs (`19:...@unq.gbl.spaces`) used for proactive DMs.
+   * Returns the most recent personal conversation mapping for this user.
+   */
+  async getLatestPersonalConversationByUser(
+    tenantId: string,
+    teamsUserId: string,
+  ): Promise<ConversationMapping | undefined> {
+    const result = await this.pool.query(
+      `SELECT tenant_id, teams_conversation_id, teams_user_id, chatwoot_conversation_id,
+              conversation_reference, created_at, updated_at
+         FROM teams_bot_conversation_mappings
+        WHERE tenant_id = $1 AND teams_user_id = $2
+        ORDER BY updated_at DESC
+        LIMIT 20`,
+      [tenantId, teamsUserId],
+    );
+
+    for (const row of result.rows) {
+      const mapping = this.mapRow(row);
+      const convType = (mapping.conversationReference as { conversation?: { conversationType?: string } })
+        ?.conversation?.conversationType;
+      if (!convType || convType === 'personal') {
+        return mapping;
+      }
+    }
+    return undefined;
+  }
 }

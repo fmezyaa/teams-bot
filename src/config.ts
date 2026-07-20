@@ -25,6 +25,7 @@ export const config = {
   adminApiToken: required('ADMIN_API_TOKEN'),
 
   bridgeBaseUrl: required('BRIDGE_BASE_URL').replace(/\/+$/, ''),
+  proactiveApiToken: process.env.PROACTIVE_API_TOKEN || required('ADMIN_API_TOKEN'),
   port: parseInt(optional('PORT', '3978'), 10),
 
   // Microsoft Graph (app-only, multi-tenant) — used for optional contact

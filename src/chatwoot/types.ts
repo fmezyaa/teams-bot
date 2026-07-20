@@ -34,12 +34,25 @@ export interface ChatwootWebhookPayload {
   content_type?: string;
   conversation?: {
     id: number;
-    inbox_id: number;
-    contact_id: number;
+    inbox_id?: number;
+    contact_inbox?: { source_id?: string };
+    meta?: {
+      sender?: {
+        id?: number;
+        name?: string;
+        email?: string;
+        identifier?: string;
+        phone_number?: string;
+      };
+    };
+    contact_id?: number;
   };
   sender?: {
     id: number;
     type: string;
+    name?: string;
+    email?: string;
+    identifier?: string;
   };
   account?: {
     id: number;
