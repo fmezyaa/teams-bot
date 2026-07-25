@@ -6,6 +6,7 @@ import { createAdapter } from './bot/adapterFactory';
 import { TeamsBot } from './bot/teamsBot';
 import { ChatwootClient } from './chatwoot/chatwootClient';
 import { createChatwootWebhookRouter } from './chatwoot/chatwootWebhook';
+import { logWebhookAuthStatus } from './chatwoot/webhookAuth';
 import { ConversationStore } from './mapping/conversationStore';
 import { TenantStore } from './mapping/tenantStore';
 import { BridgeService } from './services/bridgeService';
@@ -73,7 +74,8 @@ app.post('/api/messages', async (req, res) => {
 });
 
 // Chatwoot webhook endpoint
-app.use('/api/chatwoot', createChatwootWebhookRouter(bridgeService));
+logWebhookAuthStatus(config.chatwootWebhook);
+app.use('/api/chatwoot', createChatwootWebhookRouter(bridgeService, config.chatwootWebhook));
 
 // Proactive send (campaign runner)
 app.post('/api/proactive/send', async (req, res) => {

@@ -14,6 +14,12 @@ function optional(name: string, defaultValue: string): string {
   return process.env[name] || defaultValue;
 }
 
+function bool(name: string, defaultValue = false): boolean {
+  const value = process.env[name]?.trim().toLowerCase();
+  if (!value) return defaultValue;
+  return value === 'true' || value === '1' || value === 'yes';
+}
+
 export const config = {
   microsoftAppId: required('MICROSOFT_APP_ID'),
   microsoftAppPassword: required('MICROSOFT_APP_PASSWORD'),
@@ -21,6 +27,14 @@ export const config = {
 
   chatwootBaseUrl: required('CHATWOOT_BASE_URL').replace(/\/+$/, ''),
   chatwootApiAccessToken: required('CHATWOOT_API_ACCESS_TOKEN'),
+
+  // Shared secret for POST /api/chatwoot/webhook. Optional so existing
+  // deployments keep working; see src/chatwoot/webhookAuth.ts for the
+  // two-stage rollout (secret first, enforcement second).
+  chatwootWebhook: {
+    secret: process.env.CHATWOOT_WEBHOOK_SECRET?.trim() || '',
+    enforce: bool('CHATWOOT_WEBHOOK_ENFORCE', false),
+  },
 
   adminApiToken: required('ADMIN_API_TOKEN'),
 

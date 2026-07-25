@@ -2,11 +2,16 @@ import { Router, Request, Response } from 'express';
 import { logger } from '../utils/logger';
 import { ChatwootWebhookPayload } from './types';
 import { BridgeService } from '../services/bridgeService';
+import { createWebhookAuthMiddleware, WebhookAuthOptions } from './webhookAuth';
 
-export function createChatwootWebhookRouter(bridgeService: BridgeService): Router {
+export function createChatwootWebhookRouter(
+  bridgeService: BridgeService,
+  auth: WebhookAuthOptions,
+): Router {
   const router = Router();
+  const requireSecret = createWebhookAuthMiddleware(auth);
 
-  router.post('/webhook', (req: Request, res: Response) => {
+  const handleWebhook = (req: Request, res: Response): void => {
     // Respond immediately to avoid webhook timeout
     res.status(200).json({ status: 'ok' });
 
@@ -48,7 +53,12 @@ export function createChatwootWebhookRouter(bridgeService: BridgeService): Route
     bridgeService.handleChatwootWebhook(payload).catch((error) => {
       logger.error({ error, conversationId: payload.conversation?.id }, 'Failed to handle Chatwoot webhook');
     });
-  });
+  };
+
+  router.post('/webhook', requireSecret, handleWebhook);
+  // Chatwoot's API inbox only stores a URL (no custom headers), so the secret
+  // may also be passed as the last path segment.
+  router.post('/webhook/:secret', requireSecret, handleWebhook);
 
   return router;
 }
