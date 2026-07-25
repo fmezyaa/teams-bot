@@ -256,8 +256,18 @@ export class BridgeService {
       return;
     }
 
+    // inbox_id is mandatory — without it the payload would bypass the inbox
+    // filter entirely and deliver messages from any inbox of the account.
     const inboxId = payload.conversation?.inbox_id;
-    if (inboxId != null && Number(inboxId) !== tenant.chatwootInboxId) {
+    if (inboxId == null) {
+      logger.warn(
+        { chatwootAccountId, chatwootConversationId },
+        'Chatwoot webhook without inbox_id — discarding',
+      );
+      return;
+    }
+
+    if (Number(inboxId) !== tenant.chatwootInboxId) {
       logger.debug(
         { inboxId, expectedInboxId: tenant.chatwootInboxId, chatwootConversationId },
         'Ignoring webhook for non-Teams inbox',

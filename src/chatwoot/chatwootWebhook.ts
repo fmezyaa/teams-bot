@@ -50,6 +50,18 @@ export function createChatwootWebhookRouter(
       return;
     }
 
+    // `inbox_id` is mandatory: it is the only field the inbox filter in
+    // BridgeService can key on. A payload without it would otherwise bypass the
+    // filter and deliver into Teams from any inbox of the account.
+    const inboxId = payload.conversation.inbox_id;
+    if (inboxId == null || !Number.isFinite(Number(inboxId))) {
+      logger.warn(
+        { conversationId: payload.conversation.id, accountId: payload.account?.id },
+        'Webhook payload missing inbox_id — discarding',
+      );
+      return;
+    }
+
     bridgeService.handleChatwootWebhook(payload).catch((error) => {
       logger.error({ error, conversationId: payload.conversation?.id }, 'Failed to handle Chatwoot webhook');
     });
