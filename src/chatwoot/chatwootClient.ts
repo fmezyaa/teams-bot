@@ -31,9 +31,24 @@ export class ChatwootClient {
     }
   }
 
+  /**
+   * Look up a contact by its Teams identifier (AAD Object ID).
+   *
+   * Chatwoot's contact search is fuzzy and regularly returns unrelated
+   * contacts. Only an *exact* identifier match may be returned — falling back
+   * to the first search hit binds the Teams user to a stranger's contact and
+   * persists that wrong mapping. No match means "create a new contact".
+   */
   async searchContact(accountId: number, teamsUserId: string): Promise<ChatwootContact | undefined> {
     const contacts = await this.searchContactsByQuery(accountId, teamsUserId);
-    return contacts.find((c) => c.identifier === teamsUserId) ?? contacts[0];
+    const match = contacts.find((c) => c.identifier === teamsUserId);
+    if (!match && contacts.length > 0) {
+      logger.debug(
+        { teamsUserId, accountId, candidates: contacts.length },
+        'Contact search returned only non-exact matches — ignoring them',
+      );
+    }
+    return match;
   }
 
   async getContact(accountId: number, contactId: number): Promise<ChatwootContact | undefined> {
@@ -102,7 +117,24 @@ export class ChatwootClient {
     try {
       return await this.createContact(accountId, teamsUserId, name, email);
     } catch (error) {
-      if (ChatwootClient.getStatus(error) !== 422 || !email) {
+      if (ChatwootClient.getStatus(error) !== 422) {
+        throw error;
+      }
+
+      // 422 = duplicate. The identifier may already exist even though the
+      // search above missed it (Chatwoot's search index lags behind writes).
+      // Re-check by exact identifier before giving up — never by fuzzy match.
+      const byIdentifier = await this.retrySearchContact(accountId, teamsUserId);
+      if (byIdentifier) {
+        logger.info(
+          { contactId: byIdentifier.id, teamsUserId, accountId },
+          'Contact create returned 422 — found existing contact by exact identifier',
+        );
+        return byIdentifier;
+      }
+
+      if (!email) {
+        logger.error({ error, teamsUserId, accountId }, 'Failed to create contact (422, no email to recover by)');
         throw error;
       }
 
@@ -113,6 +145,16 @@ export class ChatwootClient {
 
       logger.error({ error, teamsUserId, accountId, email }, 'Failed to create contact');
       throw error;
+    }
+  }
+
+  /** searchContact that never throws — used on recovery paths after a 422. */
+  private async retrySearchContact(accountId: number, teamsUserId: string): Promise<ChatwootContact | undefined> {
+    try {
+      return await this.searchContact(accountId, teamsUserId);
+    } catch (error) {
+      logger.warn({ error, teamsUserId, accountId }, 'Identifier re-check after 422 failed');
+      return undefined;
     }
   }
 
