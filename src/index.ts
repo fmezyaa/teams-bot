@@ -6,7 +6,7 @@ import { createAdapter } from './bot/adapterFactory';
 import { TeamsBot } from './bot/teamsBot';
 import { ChatwootClient } from './chatwoot/chatwootClient';
 import { createChatwootWebhookRouter } from './chatwoot/chatwootWebhook';
-import { logWebhookAuthStatus } from './chatwoot/webhookAuth';
+import { secretsMatch, logWebhookAuthStatus } from './chatwoot/webhookAuth';
 import { ConversationStore } from './mapping/conversationStore';
 import { TenantStore } from './mapping/tenantStore';
 import { BridgeService } from './services/bridgeService';
@@ -85,7 +85,8 @@ app.post('/api/proactive/send', async (req, res) => {
     return;
   }
   const token = authHeader.slice(7);
-  if (token !== config.proactiveApiToken) {
+  // Konstant-zeitiger Vergleich (siehe adminRouter).
+  if (!secretsMatch(config.proactiveApiToken, token)) {
     res.status(403).json({ error: 'Invalid token' });
     return;
   }

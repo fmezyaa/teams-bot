@@ -2,6 +2,7 @@ import path from 'path';
 import { Router, Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
 import { TenantStore } from '../mapping/tenantStore';
+import { secretsMatch } from '../chatwoot/webhookAuth';
 
 export function createAdminRouter(tenantStore: TenantStore, adminApiToken: string): Router {
   const router = Router();
@@ -19,7 +20,9 @@ export function createAdminRouter(tenantStore: TenantStore, adminApiToken: strin
       return;
     }
     const token = authHeader.slice(7);
-    if (token !== adminApiToken) {
+    // Konstant-zeitiger Vergleich: ein '!==' verraet ueber die Laufzeit,
+    // wie viele Zeichen stimmen.
+    if (!secretsMatch(adminApiToken, token)) {
       res.status(403).json({ error: 'Invalid API token' });
       return;
     }
