@@ -1,5 +1,6 @@
 import { CloudAdapter, ConversationReference, MessageFactory } from 'botbuilder';
 import { logger } from '../utils/logger';
+import { toTeamsMarkdown } from '../utils/teamsText';
 import { ChatwootClient } from '../chatwoot/chatwootClient';
 import { ChatwootWebhookPayload } from '../chatwoot/types';
 import { ConversationStore } from '../mapping/conversationStore';
@@ -373,7 +374,7 @@ export class BridgeService {
   ): Promise<void> {
     try {
       await this.adapter.continueConversationAsync(this.appId, conversationReference, async (turnContext) => {
-        await turnContext.sendActivity(MessageFactory.text(content));
+        await turnContext.sendActivity(MessageFactory.text(toTeamsMarkdown(content)));
       });
 
       logger.info(logCtx, 'Chatwoot → Teams message forwarded');
@@ -418,7 +419,7 @@ export class BridgeService {
       this.appId,
       conversationReference,
       async (turnContext) => {
-        await turnContext.sendActivity(MessageFactory.text(text));
+        await turnContext.sendActivity(MessageFactory.text(toTeamsMarkdown(text)));
       },
     );
 

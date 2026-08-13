@@ -5,6 +5,7 @@ import {
   Activity,
 } from 'botbuilder';
 import { logger } from '../utils/logger';
+import { toTeamsMarkdown } from '../utils/teamsText';
 import { BridgeService } from '../services/bridgeService';
 
 export class TeamsBot extends TeamsActivityHandler {
@@ -48,7 +49,7 @@ export class TeamsBot extends TeamsActivityHandler {
       if (greeting?.enabled && greeting.text) {
         for (const member of membersAdded) {
           if (member.id !== context.activity.recipient.id) {
-            await context.sendActivity(greeting.text);
+            await context.sendActivity(toTeamsMarkdown(greeting.text));
           }
         }
       }
